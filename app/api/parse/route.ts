@@ -1,9 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { execSync } from 'child_process'
-import { writeFileSync, unlinkSync } from 'fs'
-import { tmpdir } from 'os'
-import { join } from 'path'
-import { parseRTFText } from '@/lib/parseRTF'
+import { parseRTFBuffer } from '@/lib/parseRTF'
 
 export async function POST(req: NextRequest) {
   const formData = await req.formData()
@@ -14,29 +10,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Faltan archivos' }, { status: 400 })
   }
 
-  async function extractText(file: File): Promise<string> {
-    const buffer = Buffer.from(await file.arrayBuffer())
-    const tmpPath = join(tmpdir(), `forecast_${Date.now()}_${Math.random().toString(36).slice(2)}.rtf`)
-    writeFileSync(tmpPath, buffer)
-    try {
-      const out = execSync(`pandoc "${tmpPath}" -t plain 2>/dev/null`, {
-        encoding: 'utf-8',
-        timeout: 15000,
-      })
-      return out
-    } finally {
-      try { unlinkSync(tmpPath) } catch {}
-    }
-  }
-
   try {
-    const [novotelText, ibisText] = await Promise.all([
-      extractText(novotelFile),
-      extractText(ibisFile),
+    const [novotelBuf, ibisBuf] = await Promise.all([
+      novotelFile.arrayBuffer(),
+      ibisFile.arrayBuffer(),
     ])
 
-    const novotel = parseRTFText(novotelText)
-    const ibis = parseRTFText(ibisText)
+    const novotel = parseRTFBuffer(Buffer.from(novotelBuf))
+    const ibis = parseRTFBuffer(Buffer.from(ibisBuf))
 
     return NextResponse.json({ novotel, ibis })
   } catch (e: unknown) {
