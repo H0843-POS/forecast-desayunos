@@ -128,7 +128,7 @@ export default function ForecastPage() {
               <div className="px-4 py-3 border-b border-gray-100 text-xs text-gray-400 print:hidden">
                 Datos del día anterior · Novotel + Ibis
               </div>
-              <table className="w-full text-sm">
+              <table className="w-full text-sm" style={{WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact'}}>
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-100">
                     <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500">Fecha</th>
