@@ -36,8 +36,6 @@ function buildCombined(novotel: ForecastData, ibis: ForecastData): CombinedDay[]
   })
 }
 
-function sum(arr: number[]) { return arr.reduce((a, b) => a + b, 0) }
-
 export default function ForecastPage() {
   const [novotelFile, setNovotelFile] = useState<File | null>(null)
   const [ibisFile, setIbisFile] = useState<File | null>(null)
@@ -81,9 +79,8 @@ export default function ForecastPage() {
     const combined = buildCombined(novotel, ibis)
     const wb = XLSX.utils.book_new()
     const data = [
-      ['Fecha', 'Día', 'Total personas', 'Total BKF'],
+      ['Fecha', 'Día', 'Total personas', 'Desayunos contratados'],
       ...combined.map(r => [r.fecha, r.dia, r.personas, r.bkf]),
-      ['TOTAL', '', sum(combined.map(r => r.personas)), sum(combined.map(r => r.bkf))],
     ]
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(data), 'Forecast')
     XLSX.writeFile(wb, `forecast_${new Date().toISOString().slice(0, 10)}.xlsx`)
@@ -128,7 +125,7 @@ export default function ForecastPage() {
             </div>
 
             <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-              <div className="px-4 py-3 border-b border-gray-100 text-xs text-gray-400">
+              <div className="px-4 py-3 border-b border-gray-100 text-xs text-gray-400 print:hidden">
                 Datos del día anterior · Novotel + Ibis
               </div>
               <table className="w-full text-sm">
@@ -142,26 +139,26 @@ export default function ForecastPage() {
                 </thead>
                 <tbody>
                   {combined.map((r, i) => (
-                    <tr key={i} className="border-b border-gray-50 hover:bg-gray-50/50">
+                    <tr key={i} className="border-b border-gray-50">
                       <td className="px-4 py-2 font-medium text-gray-700">{r.fecha}</td>
                       <td className="px-4 py-2 text-gray-400 text-xs">{r.dia}</td>
                       <td className="px-4 py-2 text-center font-semibold text-red-600 bg-yellow-50">{r.personas}</td>
                       <td className="px-4 py-2 text-center font-semibold text-gray-700 bg-yellow-50">{r.bkf}</td>
                     </tr>
                   ))}
-                  <tr className="border-t border-gray-200 font-semibold">
-                    <td className="px-4 py-2.5 text-xs text-gray-500">TOTAL</td>
-                    <td></td>
-                    <td className="px-4 py-2.5 text-center text-red-600 bg-yellow-100">{sum(combined.map(r => r.personas))}</td>
-                    <td className="px-4 py-2.5 text-center text-gray-700 bg-yellow-100">{sum(combined.map(r => r.bkf))}</td>
-                  </tr>
                 </tbody>
               </table>
             </div>
           </div>
         )}
       </div>
-      <style>{`@media print { .print\\:hidden { display: none !important; } }`}</style>
+      <style>{`
+        @media print {
+          .print\\:hidden { display: none !important; }
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+      `}</style>
     </main>
   )
 }
