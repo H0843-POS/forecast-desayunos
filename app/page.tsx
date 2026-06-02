@@ -136,8 +136,8 @@ export default function ForecastPage() {
                   <tr className="bg-gray-50 border-b border-gray-100">
                     <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500">Fecha</th>
                     <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500">Día</th>
-                    <th className="px-4 py-2.5 text-center text-xs font-medium text-gray-500">Total personas</th>
-                    <th className="px-4 py-2.5 text-center text-xs font-medium text-gray-500">Desayunos contratados</th>
+                    <th className="px-4 py-2.5 text-center text-xs font-medium text-gray-500 bg-yellow-50">Total personas</th>
+                    <th className="px-4 py-2.5 text-center text-xs font-medium text-gray-500 bg-yellow-50">Desayunos contratados</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -145,15 +145,15 @@ export default function ForecastPage() {
                     <tr key={i} className="border-b border-gray-50 hover:bg-gray-50/50">
                       <td className="px-4 py-2 font-medium text-gray-700">{r.fecha}</td>
                       <td className="px-4 py-2 text-gray-400 text-xs">{r.dia}</td>
-                      <td className="px-4 py-2 text-center font-semibold text-gray-700">{r.personas}</td>
-                      <td className="px-4 py-2 text-center font-semibold text-gray-700">{r.bkf}</td>
+                      <td className="px-4 py-2 text-center font-semibold text-red-600 bg-yellow-50">{r.personas}</td>
+                      <td className="px-4 py-2 text-center font-semibold text-gray-700 bg-yellow-50">{r.bkf}</td>
                     </tr>
                   ))}
-                  <tr className="bg-gray-50 border-t border-gray-200 font-semibold">
+                  <tr className="border-t border-gray-200 font-semibold">
                     <td className="px-4 py-2.5 text-xs text-gray-500">TOTAL</td>
                     <td></td>
-                    <td className="px-4 py-2.5 text-center text-gray-700">{sum(combined.map(r => r.personas))}</td>
-                    <td className="px-4 py-2.5 text-center text-gray-700">{sum(combined.map(r => r.bkf))}</td>
+                    <td className="px-4 py-2.5 text-center text-red-600 bg-yellow-100">{sum(combined.map(r => r.personas))}</td>
+                    <td className="px-4 py-2.5 text-center text-gray-700 bg-yellow-100">{sum(combined.map(r => r.bkf))}</td>
                   </tr>
                 </tbody>
               </table>
