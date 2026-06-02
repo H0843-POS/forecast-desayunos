@@ -22,8 +22,13 @@ function dayName(iso: string): string {
   return DIAS[d.getDay()]
 }
 
-export function parseRTFText(text: string): ForecastData {
-  const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
+export function parseRTFBuffer(buf: Buffer): ForecastData {
+  let text = buf.toString('latin1')
+  text = text.replace(/\\u(\d+)G/g, (_, code) => String.fromCharCode(parseInt(code)))
+  text = text.replace(/\\[a-zA-Z]+[-]?\d*[ ]?/g, ' ')
+  text = text.replace(/[{}]/g, ' ')
+  text = text.replace(/[ \t]+/g, ' ').replace(/ ?\n ?/g, '\n')
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l && l !== '*' && l !== ';')
 
   const hotel = lines.find(l => l.includes('Novotel') || l.includes('Ibis')) || 'Hotel'
 
@@ -34,10 +39,7 @@ export function parseRTFText(text: string): ForecastData {
     if (dateRe.test(l)) {
       const [, d, m, y] = l.match(dateRe)!
       const iso = `20${y}-${m}-${d}`
-      if (!seen.has(iso)) {
-        seen.add(iso)
-        dates.push({ iso, label: `${d}/${m}` })
-      }
+      if (!seen.has(iso)) { seen.add(iso); dates.push({ iso, label: `${d}/${m}` }) }
     }
   }
   const dataDates = dates.slice(1, 16)
@@ -54,29 +56,29 @@ export function parseRTFText(text: string): ForecastData {
 
   const bkf = collectAfter('BKF', 15)
   const rooms = collectAfter('Occ.', 15)
-  const adults = collectAfter('in Hse.', 15)
 
-  const adultsIdx = lines.findIndex(l => l === 'in Hse.')
+  const adultsIdx = lines.findIndex(l => l === 'Adults')
+  const adults: number[] = []
   const children: number[] = []
-  let skip = 15
   for (let i = adultsIdx + 1; i < lines.length && children.length < 15; i++) {
     if (/^\d+$/.test(lines[i])) {
-      if (skip > 0) skip--
-      else children.push(parseInt(lines[i]))
+      const n = parseInt(lines[i])
+      if (adults.length < 15) adults.push(n)
+      else children.push(n)
     }
   }
 
   const days: DayData[] = dataDates.map((dt, i) => ({
-    fecha: dt.label,
-    iso: dt.iso,
-    dia: dayName(dt.iso),
-    rooms: rooms[i] ?? 0,
-    adults: adults[i] ?? 0,
-    children: children[i] ?? 0,
-    bkf: bkf[i] ?? 0,
+    fecha: dt.label, iso: dt.iso, dia: dayName(dt.iso),
+    rooms: rooms[i] ?? 0, adults: adults[i] ?? 0,
+    children: children[i] ?? 0, bkf: bkf[i] ?? 0,
   }))
 
   return { hotel, days }
+}
+
+export function parseRTFText(text: string): ForecastData {
+  return parseRTFBuffer(Buffer.from(text, 'latin1'))
 }
 
 export function shiftDayForward(day: DayData): DayData {
