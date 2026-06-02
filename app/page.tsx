@@ -31,7 +31,7 @@ function buildCombined(novotel: ForecastData, ibis: ForecastData): CombinedDay[]
       fecha: shifted.fecha,
       dia: shifted.dia,
       personas: (nd?.adults ?? 0) + (nd?.children ?? 0) + (id?.adults ?? 0) + (id?.children ?? 0),
-      bkf: (nd?.bkf ?? 0) + (id?.bkf ?? 0),
+      bkf: (nd?.bkf ?? 0) + (id?.bkf ?? 0) + (nd?.children ?? 0) + (id?.children ?? 0),
     }
   })
 }
