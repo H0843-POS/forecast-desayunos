@@ -22,6 +22,43 @@ function dayName(iso: string): string {
   return DIAS[d.getDay()]
 }
 
+export function parseHTMLBuffer(buf: Buffer): ForecastData {
+  const text = buf.toString('utf-8')
+  const clean = text
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#160;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, '\n')
+  const lines = clean.split('\n').map(l => l.trim()).filter(Boolean)
+
+  const hotel = lines.find(l => l.includes('Novotel') || l.includes('Ibis')) || 'Hotel'
+
+  const dateRe = /^(\d{2})\.(\d{2})\.(\d{2})$/
+  const WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+  const days: DayData[] = []
+
+  for (let i = 0; i < lines.length; i++) {
+    if (!dateRe.test(lines[i])) continue
+    if (/^\d{2}:\d{2}$/.test(lines[i + 1])) continue
+    if (WEEKDAYS.includes(lines[i + 1])) {
+      const [, d, m, y] = lines[i].match(dateRe)!
+      const iso = `20${y}-${m}-${d}`
+      days.push({
+        fecha: `${d}/${m}`,
+        iso,
+        dia: dayName(iso),
+        rooms:    parseInt(lines[i + 2]) || 0,
+        adults:   parseInt(lines[i + 3]) || 0,
+        children: parseInt(lines[i + 4]) || 0,
+        bkf:      parseInt(lines[i + 9]) || 0,
+      })
+    }
+  }
+
+  return { hotel, days }
+}
+
 export function parseRTFBuffer(buf: Buffer): ForecastData {
   let text = buf.toString('latin1')
   text = text.replace(/\\u(\d+)G/g, (_, code) => String.fromCharCode(parseInt(code)))
