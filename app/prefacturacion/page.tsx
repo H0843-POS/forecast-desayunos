@@ -4,6 +4,13 @@ import { useState, useRef } from 'react'
 import Link from 'next/link'
 
 const TARIFA_STD = 22.50
+const TARIFA_PDE = 18.00
+
+function getPrecio(cod: string): number {
+  if (cod.toUpperCase().startsWith('PDE')) return TARIFA_PDE
+  const m = cod.match(/(\d+)/)
+  return m ? parseInt(m[1]) / 100 : TARIFA_STD
+}
 
 interface Col { cod: string; cantidad: number }
 interface HotelData { hotel: string; cols: Col[] }
