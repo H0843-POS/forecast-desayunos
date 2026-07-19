@@ -15,11 +15,6 @@ function getPrecio(cod: string): number {
 interface Col { cod: string; cantidad: number }
 interface HotelData { hotel: string; cols: Col[] }
 
-function getPrecio(cod: string): number {
-  const m = cod.match(/(\d+)/)
-  return m ? parseInt(m[1]) / 100 : TARIFA_STD
-}
-
 function parseHTML(html: string): HotelData | null {
   let hotel = ''
   if (/ibis/i.test(html)) hotel = 'Ibis Styles Madrid City Las Ventas'
