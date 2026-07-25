@@ -1,17 +1,18 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabaseStock } from '@/lib/supabaseStock'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 
 // POST /api/stock/conteo
 //   { lineaId, ubicacionId, unidades, quien }  -> guarda un conteo
-//   { lineaId, nota }                          -> guarda la nota de la línea
+//   { lineaId, nota }                          -> guarda la nota de la linea
 export async function POST(req: Request) {
   let body: any
   try {
     body = await req.json()
   } catch {
-    return NextResponse.json({ error: 'Cuerpo no válido' }, { status: 400 })
+    return NextResponse.json({ error: 'Cuerpo no valido' }, { status: 400 })
   }
 
   const lineaId = Number(body?.lineaId)
@@ -21,7 +22,7 @@ export async function POST(req: Request) {
 
   // --- nota ---
   if (typeof body.nota === 'string' && body.ubicacionId === undefined) {
-    const { error } = await supabase.rpc('stk_guardar_nota', {
+    const { error } = await supabaseStock.rpc('stk_guardar_nota', {
       p_linea_id: lineaId,
       p_nota: body.nota,
     })
@@ -37,10 +38,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Falta ubicacionId' }, { status: 400 })
   }
   if (!Number.isFinite(unidades) || unidades < 0) {
-    return NextResponse.json({ error: 'Cantidad no válida' }, { status: 400 })
+    return NextResponse.json({ error: 'Cantidad no valida' }, { status: 400 })
   }
 
-  const { data, error } = await supabase.rpc('stk_guardar_conteo', {
+  const { data, error } = await supabaseStock.rpc('stk_guardar_conteo', {
     p_linea_id: lineaId,
     p_ubicacion_id: ubicacionId,
     p_unidades: unidades,
