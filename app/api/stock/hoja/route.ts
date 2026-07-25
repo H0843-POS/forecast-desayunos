@@ -1,52 +1,59 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 
-// POST /api/stock/conteo
-//   { lineaId, ubicacionId, unidades, quien }  -> guarda un conteo
-//   { lineaId, nota }                          -> guarda la nota de la línea
-export async function POST(req: Request) {
-  let body: any
+// GET /api/stock/hoja           -> jornada de hoy (corte 04:00)
+// GET /api/stock/hoja?fecha=... -> una jornada concreta
+export async function GET(req: Request) {
   try {
-    body = await req.json()
-  } catch {
-    return NextResponse.json({ error: 'Cuerpo no válido' }, { status: 400 })
-  }
+    const fecha = new URL(req.url).searchParams.get('fecha')
 
-  const lineaId = Number(body?.lineaId)
-  if (!Number.isFinite(lineaId)) {
-    return NextResponse.json({ error: 'Falta lineaId' }, { status: 400 })
-  }
+    // Import dinámico: si el cliente de Supabase falla al cargarse,
+    // lo vemos como JSON en vez de como una respuesta vacía.
+    let supabase: any
+    try {
+      supabase = (await import('@/lib/supabase')).supabase
+    } catch (e: any) {
+      return NextResponse.json(
+        {
+          error: 'No se pudo cargar el cliente de Supabase',
+          detalle: String(e?.message || e),
+          env_url: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+          env_key: !!process.env.SUPABASE_SERVICE_KEY,
+        },
+        { status: 500 }
+      )
+    }
 
-  // --- nota ---
-  if (typeof body.nota === 'string' && body.ubicacionId === undefined) {
-    const { error } = await supabase.rpc('stk_guardar_nota', {
-      p_linea_id: lineaId,
-      p_nota: body.nota,
+    const { data, error } = await supabase.rpc('stk_hoja_conteo', {
+      p_fecha: fecha || null,
     })
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ ok: true })
+
+    if (error) {
+      return NextResponse.json(
+        {
+          error: 'Error de base de datos',
+          detalle: error.message,
+          code: error.code ?? null,
+          hint: error.hint ?? null,
+        },
+        { status: 500 }
+      )
+    }
+
+    if (!data) {
+      return NextResponse.json(
+        { error: 'La funcion devolvio vacio', pista: 'Revisa que se aplico 03_rpc_conteo.sql' },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json(data)
+  } catch (e: any) {
+    return NextResponse.json(
+      { error: 'Fallo inesperado', detalle: String(e?.message || e) },
+      { status: 500 }
+    )
   }
-
-  // --- conteo ---
-  const ubicacionId = Number(body?.ubicacionId)
-  const unidades = Number(body?.unidades)
-
-  if (!Number.isFinite(ubicacionId)) {
-    return NextResponse.json({ error: 'Falta ubicacionId' }, { status: 400 })
-  }
-  if (!Number.isFinite(unidades) || unidades < 0) {
-    return NextResponse.json({ error: 'Cantidad no válida' }, { status: 400 })
-  }
-
-  const { data, error } = await supabase.rpc('stk_guardar_conteo', {
-    p_linea_id: lineaId,
-    p_ubicacion_id: ubicacionId,
-    p_unidades: unidades,
-    p_quien: typeof body.quien === 'string' ? body.quien.slice(0, 80) : null,
-  })
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ ok: true, total: data })
 }
