@@ -352,6 +352,7 @@ export default function PedidoPage() {
             <Link href="/stock/pedido" data-on="1">
               Pedido
             </Link>
+            <Link href="/stock/ajustes">Ajustes</Link>
           </nav>
         </div>
 
