@@ -1,442 +1,355 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 
-type Fila = {
+type Ubicacion = { id: number; codigo: string; nombre: string }
+type Producto = {
   linea_id: number
-  producto: string
+  nombre: string
   categoria: string
   cat_codigo: string
   seccion: string | null
+  paso: string
   par: string
-  inicial: string
-  entradas: string
-  final: string
-  consumo: string
-  nota: string | null
-  pedido: string | null
-  pedido_sugerido: string
-  recibido: string | null
-  estado_pedido: string
-  contado: boolean
+  ubicaciones: number[] | null
+  conteos: Record<string, string>
 }
-type Datos = {
-  jornada: { id: number; fecha: string; estado: string; perfil: string | null } | null
-  filas: Fila[]
+type Hoja = {
+  jornada: { id: number; fecha: string; estado: string; perfil: string | null }
+  ubicaciones: Ubicacion[]
+  productos: Producto[]
 }
+type Estado = 'idle' | 'guardando' | 'guardado' | 'error'
 
-const n = (v: any) => (v === null || v === undefined ? null : Number(v))
-const f = (v: any) => {
-  const x = n(v)
-  return x === null ? '—' : String(Math.round(x * 100) / 100).replace('.', ',')
-}
-const hoyOperativo = () => {
-  const d = new Date()
-  d.setHours(d.getHours() - 4)
-  return d.toISOString().slice(0, 10)
-}
 const sinTildes = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 
 const CSS = `
-.stkh{--bg:#12141a;--panel:#1b1f28;--line:#2f3644;--txt:#eef1f6;--dim:#8b94a7;--acc:#4ea3ff;
-  --ok:#3ddc97;--warn:#ffb454;
-  background:var(--bg);color:var(--txt);min-height:100vh;padding-bottom:104px;
-  font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-.stkh *{box-sizing:border-box}
-.stkh-top{position:sticky;top:0;z-index:20;background:rgba(18,20,26,.97);backdrop-filter:blur(8px);
-  border-bottom:1px solid var(--line);padding:11px 14px}
-.stkh-row1{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px}
-.stkh-h1{font-size:16px;font-weight:650;margin:0}
-.stkh-sub{font-size:11.5px;color:var(--dim);margin:2px 0 0}
-.stkh-link{font-size:13px;color:var(--acc);text-decoration:none;background:none;border:0;padding:6px;
-  cursor:pointer;white-space:nowrap}
-.stkh-nav{display:flex;align-items:center;gap:6px;margin-bottom:9px}
-.stkh-nav button{width:34px;height:34px;border-radius:8px;border:1px solid var(--line);
-  background:var(--panel);color:var(--txt);font-size:15px;cursor:pointer}
-.stkh-nav input[type=date]{flex:1 1 auto;min-width:0;height:34px;border-radius:8px;
-  border:1px solid var(--line);background:var(--panel);color:var(--txt);padding:0 8px;font-size:13px;
-  font-family:inherit;color-scheme:dark}
-.stkh-hoy{padding:0 11px!important;width:auto!important;font-size:12.5px!important;font-weight:600}
-.stkh-busca{position:relative;margin-bottom:9px}
-.stkh-busca input{width:100%;height:38px;border-radius:9px;border:1px solid var(--line);
+.stkc{--bg:#12141a;--panel:#1b1f28;--panel2:#232834;--line:#2f3644;--txt:#eef1f6;--dim:#8b94a7;
+  --acc:#4ea3ff;--ok:#3ddc97;--warn:#ffb454;--bad:#ff6b6b;
+  background:var(--bg);color:var(--txt);min-height:100vh;padding-bottom:92px;
+  font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%}
+.stkc *{box-sizing:border-box}
+.stkc-top{position:sticky;top:0;z-index:20;background:rgba(18,20,26,.97);backdrop-filter:blur(8px);
+  border-bottom:1px solid var(--line);padding:12px 16px}
+.stkc-toprow{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.stkc-zona{font-size:18px;font-weight:650;letter-spacing:-.01em;margin:0}
+.stkc-sub{font-size:12px;color:var(--dim);margin:2px 0 0}
+.stkc-link{font-size:13px;color:var(--acc);text-decoration:none;background:none;border:0;padding:6px;cursor:pointer}
+.stkc-busca{position:relative;margin-top:10px}
+.stkc-busca input{width:100%;height:38px;border-radius:9px;border:1px solid var(--line);
   background:var(--panel);color:var(--txt);padding:0 34px 0 12px;font-size:14.5px;font-family:inherit}
-.stkh-busca input:focus{outline:2px solid var(--acc);outline-offset:-1px}
-.stkh-x{position:absolute;right:4px;top:4px;width:30px;height:30px;border:0;background:none;
+.stkc-busca input:focus{outline:2px solid var(--acc);outline-offset:-1px}
+.stkc-x{position:absolute;right:4px;top:4px;width:30px;height:30px;border:0;background:none;
   color:var(--dim);font-size:17px;cursor:pointer}
-.stkh-filtros{display:flex;gap:7px;overflow-x:auto;scrollbar-width:none}
-.stkh-filtros::-webkit-scrollbar{display:none}
-.stkh-f{flex:0 0 auto;padding:7px 12px;border-radius:999px;border:1px solid var(--line);
-  background:var(--panel);color:var(--dim);font-size:12.5px;white-space:nowrap;cursor:pointer}
-.stkh-f[data-on="1"]{background:var(--acc);border-color:var(--acc);color:#08111c;font-weight:600}
-.stkh-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
-.stkh-t{border-collapse:collapse;width:100%;min-width:820px;font-size:13.5px}
-.stkh-t th{position:sticky;top:0;background:#1b1f28;color:var(--dim);font-weight:600;font-size:11px;
-  text-transform:uppercase;letter-spacing:.05em;padding:9px 10px;text-align:right;white-space:nowrap;
-  border-bottom:1px solid var(--line)}
-.stkh-t th:first-child,.stkh-t td:first-child{text-align:left;position:sticky;left:0;
-  background:var(--bg);z-index:2;min-width:180px;box-shadow:1px 0 0 var(--line)}
-.stkh-t th:first-child{background:#1b1f28;z-index:3}
-.stkh-t td{padding:8px 10px;text-align:right;border-bottom:1px solid #20252f;
-  font-variant-numeric:tabular-nums;white-space:nowrap}
-.stkh-t tr[data-sin="1"] td{color:#5d6577}
-.stkh-sec td{background:#171b23;color:var(--dim);font-size:10.5px;font-weight:700;letter-spacing:.09em;
-  text-transform:uppercase;text-align:left!important;padding:7px 10px}
-.stkh-cons{font-weight:650;color:var(--txt)}
-.stkh-ini sup{color:var(--warn);font-size:10px;margin-left:2px}
-.stkh-in{width:60px;height:31px;border-radius:7px;border:1px solid var(--line);background:#12151c;
-  color:var(--txt);text-align:center;font-size:14px;font-weight:600;font-variant-numeric:tabular-nums}
-.stkh-in:focus{outline:2px solid var(--acc);outline-offset:-1px}
-.stkh-sel{height:31px;border-radius:7px;border:1px solid var(--line);background:#12151c;
-  color:var(--txt);font-size:12px;padding:0 4px;font-family:inherit}
-.stkh-nota{max-width:220px;white-space:normal;color:var(--warn);font-size:11.5px;
-  text-align:left!important;line-height:1.35}
-.stkh-msg{padding:60px 24px;text-align:center;color:var(--dim);font-size:14px;line-height:1.6}
-.stkh-pie{padding:16px 14px 6px;color:#5d6577;font-size:11.5px;line-height:1.5}
-.stkh-bar{position:fixed;left:0;right:0;bottom:0;z-index:30;background:rgba(27,31,40,.97);
+.stkc-sec{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--dim);
+  padding:20px 16px 8px;position:sticky;top:124px;background:var(--bg);z-index:10}
+.stkc-fila{display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid #20252f}
+.stkc-fila[data-done="1"]{background:#161d1a}
+.stkc-nom{flex:1 1 auto;min-width:0;font-size:15px;line-height:1.25}
+.stkc-nom small{display:block;color:var(--dim);font-size:11px;margin-top:2px}
+.stkc-ctrl{display:flex;align-items:center;gap:5px;flex:0 0 auto}
+.stkc-btn{width:38px;height:42px;border-radius:9px;border:1px solid var(--line);background:#2b3140;
+  color:var(--txt);font-size:20px;line-height:1;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.stkc-btn:active{background:var(--acc);color:#08111c}
+.stkc-in{width:66px;height:42px;border-radius:9px;border:1px solid var(--line);background:#12151c;
+  color:var(--txt);text-align:center;font-size:17px;font-weight:650;font-variant-numeric:tabular-nums}
+.stkc-in:focus{outline:2px solid var(--acc);outline-offset:-1px}
+.stkc-dot{width:7px;height:7px;border-radius:50%;background:transparent;flex:0 0 auto}
+.stkc-dot[data-s="guardando"]{background:var(--warn)}
+.stkc-dot[data-s="guardado"]{background:var(--ok)}
+.stkc-dot[data-s="error"]{background:var(--bad)}
+.stkc-bar{position:fixed;left:0;right:0;bottom:0;z-index:30;background:rgba(27,31,40,.97);
   backdrop-filter:blur(8px);border-top:1px solid var(--line);
-  padding:10px 14px calc(10px + env(safe-area-inset-bottom))}
-.stkh-barrow{display:flex;gap:8px;align-items:center;justify-content:space-between;
-  font-size:12px;color:var(--dim)}
-.stkh-barrow b{color:var(--txt)}
-.stkh-acc{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
-.stkh-acc button,.stkh-acc a{border:1px solid var(--line);border-radius:9px;background:var(--panel);
-  color:var(--txt);font-size:12.5px;font-weight:600;padding:9px 12px;cursor:pointer;
-  text-decoration:none;font-family:inherit}
-.stkh-acc .pri{background:var(--acc);border-color:var(--acc);color:#08111c}
-.stkh-acc button:disabled{opacity:.4}
+  padding:11px 16px calc(11px + env(safe-area-inset-bottom))}
+.stkc-prog{height:4px;border-radius:99px;background:var(--panel2);overflow:hidden;margin-bottom:8px}
+.stkc-prog i{display:block;height:100%;background:var(--ok);transition:width .25s}
+.stkc-barrow{display:flex;align-items:center;justify-content:space-between;font-size:13px}
+.stkc-msg{padding:60px 24px;text-align:center;color:var(--dim);font-size:14px;line-height:1.6}
+.stkc-wrap{padding:20px 16px 0;max-width:520px;margin:0 auto}
+.stkc-wrap h2{font-size:20px;margin:0 0 4px}
+.stkc-wrap p{color:var(--dim);font-size:14px;margin:0 0 22px;line-height:1.5}
+.stkc-zbtn{display:flex;align-items:center;justify-content:space-between;width:100%;text-align:left;
+  background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:10px;
+  color:var(--txt);font-size:16px;font-weight:600;cursor:pointer}
+.stkc-zbtn b{display:block;font-size:12px;font-weight:500;color:var(--dim);margin-top:3px}
+.stkc-zbtn[data-full="1"]{border-color:#2a4a3c}
+.stkc-pill{font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums;white-space:nowrap}
+.stkc-pill[data-full="1"]{color:var(--ok)}
+.stkc-gate input{width:100%;height:48px;border-radius:12px;border:1px solid var(--line);
+  background:var(--panel);color:var(--txt);padding:0 14px;font-size:16px;font-family:inherit}
+.stkc-gate button{width:100%;height:48px;margin-top:12px;border-radius:12px;border:0;background:var(--acc);
+  color:#08111c;font-size:15px;font-weight:650;cursor:pointer}
+.stkc-gate button:disabled{opacity:.4}
+@media (prefers-reduced-motion:reduce){.stkc *{transition:none!important}}
 `
 
-export default function HojaPage() {
-  const [fecha, setFecha] = useState(hoyOperativo())
-  const [d, setD] = useState<Datos | null>(null)
-  const [cargando, setCargando] = useState(true)
+export default function ConteoPage() {
+  const [hoja, setHoja] = useState<Hoja | null>(null)
   const [fallo, setFallo] = useState<string | null>(null)
-  const [filtro, setFiltro] = useState('todo')
+  const [quien, setQuien] = useState<string | null>(null)
+  const [borrador, setBorrador] = useState('')
+  const [zona, setZona] = useState<number | null>(null)
   const [busca, setBusca] = useState('')
-  const [ocupado, setOcupado] = useState(false)
-  const [copiado, setCopiado] = useState(false)
+  const [valores, setValores] = useState<Record<string, string>>({})
+  const [estados, setEstados] = useState<Record<number, Estado>>({})
+  const timers = useRef<Record<string, any>>({})
 
-  const esHoy = fecha === hoyOperativo()
-
-  const cargar = async (fch: string) => {
-    setCargando(true)
-    setFallo(null)
-    try {
-      const url = fch === hoyOperativo() ? '/api/stock/pedido' : `/api/stock/pedido?fecha=${fch}`
-      const r = await fetch(url)
-      const t = await r.text()
-      let j: any
-      try {
-        j = JSON.parse(t)
-      } catch {
-        throw new Error(t.slice(0, 200) || 'respuesta vacía')
-      }
-      if (!r.ok) throw new Error(j.detalle || j.error)
-      setD(j)
-    } catch (e: any) {
-      setFallo(e.message)
-    } finally {
-      setCargando(false)
-    }
-  }
+  useEffect(() => setQuien(localStorage.getItem('stk_quien')), [])
 
   useEffect(() => {
-    cargar(fecha)
-  }, [fecha])
+    fetch('/api/stock/hoja')
+      .then(async (r) => {
+        const t = await r.text()
+        let j: any
+        try {
+          j = JSON.parse(t)
+        } catch {
+          throw new Error(t.slice(0, 200) || 'respuesta vacía del servidor')
+        }
+        if (!r.ok) throw new Error(j.detalle || j.error || 'no se pudo cargar')
+        return j as Hoja
+      })
+      .then((h) => {
+        setHoja(h)
+        const v: Record<string, string> = {}
+        h.productos?.forEach((p) =>
+          Object.entries(p.conteos || {}).forEach(([ub, n]) => {
+            v[`${p.linea_id}:${ub}`] = String(Number(n))
+          })
+        )
+        setValores(v)
+      })
+      .catch((e) => setFallo(e.message))
+  }, [])
 
-  const mover = (dias: number) => {
-    const x = new Date(fecha + 'T12:00:00')
-    x.setDate(x.getDate() + dias)
-    setFecha(x.toISOString().slice(0, 10))
-  }
-
-  const guardar = async (lineaId: number, campo: 'pedido' | 'recibido' | 'estado', valor: string) => {
-    await fetch('/api/stock/pedido', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lineaId, [campo]: valor }),
-    })
-  }
-
-  const cats = useMemo(() => {
-    const m = new Map<string, string>()
-    d?.filas.forEach((x) => m.set(x.cat_codigo, x.categoria))
-    return Array.from(m, ([codigo, nombre]) => ({ codigo, nombre }))
-  }, [d])
-
-  const filas = useMemo(() => {
-    if (!d) return []
-    let r = d.filas
-    if (busca.trim()) {
-      const q = sinTildes(busca.trim())
-      r = r.filter((x) => sinTildes(x.producto).includes(q))
-    }
-    if (filtro === 'consumo') r = r.filter((x) => x.contado && n(x.consumo) !== 0)
-    else if (filtro === 'sincontar') r = r.filter((x) => !x.contado)
-    else if (filtro === 'pedido') r = r.filter((x) => n(x.pedido) !== null && n(x.pedido)! > 0)
-    else if (filtro === 'nota') r = r.filter((x) => !!x.nota)
-    else if (filtro !== 'todo') r = r.filter((x) => x.cat_codigo === filtro)
-    return r
-  }, [d, filtro, busca])
-
-  const pedidoLineas = useMemo(
-    () => (d?.filas || []).filter((x) => n(x.pedido) !== null && n(x.pedido)! > 0),
-    [d]
+  const guardar = useCallback(
+    (lineaId: number, ubicacionId: number, valor: string) => {
+      const key = `${lineaId}:${ubicacionId}`
+      clearTimeout(timers.current[key])
+      timers.current[key] = setTimeout(async () => {
+        const unidades = valor === '' ? 0 : Number(valor.replace(',', '.'))
+        if (!Number.isFinite(unidades) || unidades < 0) {
+          setEstados((s) => ({ ...s, [lineaId]: 'error' }))
+          return
+        }
+        setEstados((s) => ({ ...s, [lineaId]: 'guardando' }))
+        try {
+          const r = await fetch('/api/stock/conteo', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lineaId, ubicacionId, unidades, quien }),
+          })
+          if (!r.ok) throw new Error()
+          setEstados((s) => ({ ...s, [lineaId]: 'guardado' }))
+        } catch {
+          setEstados((s) => ({ ...s, [lineaId]: 'error' }))
+        }
+      }, 550)
+    },
+    [quien]
   )
 
-  const textoPedido = useMemo(() => {
-    const l = [`Pedido a economato — ${fecha}`, '']
-    let cat = ''
-    pedidoLineas.forEach((x) => {
-      if (x.categoria !== cat) {
-        cat = x.categoria
-        l.push(`— ${cat.toUpperCase()} —`)
-      }
-      l.push(`${f(x.pedido)} · ${x.producto}`)
-    })
-    if (!pedidoLineas.length) l.push('(sin lineas)')
-    return l.join('\n')
-  }, [pedidoLineas, fecha])
+  const cambiar = (lineaId: number, ubicacionId: number, valor: string) => {
+    setValores((v) => ({ ...v, [`${lineaId}:${ubicacionId}`]: valor }))
+    guardar(lineaId, ubicacionId, valor)
+  }
 
-  const descargarCsv = () => {
-    const cab = ['Producto', 'Categoria', 'Inicial', 'Entradas', 'Final', 'Consumo', 'Pedido', 'Recibido', 'Estado', 'Comentarios']
-    const filasCsv = (d?.filas || []).map((x) =>
-      [x.producto, x.categoria, x.inicial, x.entradas, x.final, x.consumo, x.pedido ?? '', x.recibido ?? '', x.estado_pedido, (x.nota || '').replace(/[\r\n]+/g, ' ')]
-        .map((c) => `"${String(c).replace(/"/g, '""')}"`)
-        .join(';')
+  const paso = (lineaId: number, ubicacionId: number, delta: number, step: number) => {
+    const key = `${lineaId}:${ubicacionId}`
+    const actual = Number((valores[key] || '0').replace(',', '.')) || 0
+    cambiar(lineaId, ubicacionId, String(Math.max(0, Math.round((actual + delta * step) * 100) / 100)))
+  }
+
+  // referencias que viven en cada zona, en orden de categoría y sección
+  const porZona = useMemo(() => {
+    const m = new Map<number, Producto[]>()
+    hoja?.productos?.forEach((p) =>
+      (p.ubicaciones || []).forEach((u) => {
+        if (!m.has(u)) m.set(u, [])
+        m.get(u)!.push(p)
+      })
     )
-    const csv = '\uFEFF' + [cab.join(';'), ...filasCsv].join('\r\n')
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }))
-    a.download = `stock_${fecha}.csv`
-    a.click()
+    return m
+  }, [hoja])
+
+  const hechas = useCallback(
+    (uid: number) => (porZona.get(uid) || []).filter((p) => valores[`${p.linea_id}:${uid}`] !== undefined).length,
+    [porZona, valores]
+  )
+
+  if (!quien) {
+    return (
+      <div className="stkc">
+        <style>{CSS}</style>
+        <div className="stkc-wrap stkc-gate" style={{ paddingTop: 70 }}>
+          <h2>Conteo de stock</h2>
+          <p>¿Quién hace el control esta noche? Queda anotado en cada conteo.</p>
+          <input value={borrador} onChange={(e) => setBorrador(e.target.value)} placeholder="Nombre y apellido" />
+          <button
+            disabled={borrador.trim().length < 3}
+            onClick={() => {
+              localStorage.setItem('stk_quien', borrador.trim())
+              setQuien(borrador.trim())
+            }}
+          >
+            Empezar
+          </button>
+        </div>
+      </div>
+    )
   }
 
   if (fallo)
     return (
-      <div className="stkh">
+      <div className="stkc">
         <style>{CSS}</style>
-        <p className="stkh-msg">
-          No se pudo cargar la hoja.
-          <br />
-          {fallo}
-        </p>
+        <p className="stkc-msg">No se pudo cargar la hoja.<br />{fallo}</p>
       </div>
     )
 
-  const sinContar = (d?.filas || []).filter((x) => !x.contado).length
-  const consumoTotal = (d?.filas || [])
-    .filter((x) => x.contado)
-    .reduce((a, x) => a + (n(x.consumo) || 0), 0)
+  if (!hoja)
+    return (
+      <div className="stkc">
+        <style>{CSS}</style>
+        <p className="stkc-msg">Cargando la hoja de hoy…</p>
+      </div>
+    )
+
+  // ---------- elegir zona ----------
+  if (zona === null) {
+    return (
+      <div className="stkc">
+        <style>{CSS}</style>
+        <div className="stkc-wrap" style={{ paddingTop: 28 }}>
+          <h2>¿Dónde estás contando?</h2>
+          <p>
+            Jornada {hoja.jornada.fecha}
+            {hoja.jornada.perfil ? ` · par ${hoja.jornada.perfil}` : ''} · {quien}
+          </p>
+          {hoja.ubicaciones.map((u) => {
+            const total = (porZona.get(u.id) || []).length
+            const h = hechas(u.id)
+            if (!total) return null
+            return (
+              <button key={u.id} className="stkc-zbtn" data-full={h === total ? '1' : '0'} onClick={() => setZona(u.id)}>
+                <span>
+                  {u.nombre}
+                  <b>{total} referencias</b>
+                </span>
+                <span className="stkc-pill" data-full={h === total ? '1' : '0'}>
+                  {h === total ? 'completa' : `${h}/${total}`}
+                </span>
+              </button>
+            )
+          })}
+          <div style={{ marginTop: 24, textAlign: 'center' }}>
+            <Link className="stkc-link" href="/stock/hoja">
+              Ver la hoja del día →
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ---------- contar una zona ----------
+  const ub = hoja.ubicaciones.find((u) => u.id === zona)!
+  const todas = porZona.get(zona) || []
+  const filas = busca.trim()
+    ? todas.filter((p) => sinTildes(p.nombre).includes(sinTildes(busca.trim())))
+    : todas
+  const total = todas.length
+  const h = hechas(zona)
   let seccionActual: string | null | undefined = undefined
 
   return (
-    <div className="stkh">
+    <div className="stkc">
       <style>{CSS}</style>
 
-      <div className="stkh-top">
-        <div className="stkh-row1">
+      <div className="stkc-top">
+        <div className="stkc-toprow">
           <div>
-            <h1 className="stkh-h1">Hoja de stock</h1>
-            <p className="stkh-sub">
-              {d?.jornada
-                ? `${d.jornada.perfil ? `par ${d.jornada.perfil} · ` : ''}${d.filas.length} referencias`
-                : 'sin datos para esta fecha'}
+            <h1 className="stkc-zona">{ub.nombre}</h1>
+            <p className="stkc-sub">
+              {hoja.jornada.fecha} · {quien}
             </p>
           </div>
-          <Link className="stkh-link" href="/stock">
-            ← Contar
-          </Link>
-        </div>
-
-        <div className="stkh-nav">
-          <button onClick={() => mover(-1)} aria-label="Dia anterior">
-            &#8249;
+          <button className="stkc-link" onClick={() => setZona(null)}>
+            Cambiar zona
           </button>
-          <input type="date" value={fecha} max={hoyOperativo()} onChange={(e) => setFecha(e.target.value)} />
-          <button onClick={() => mover(1)} disabled={esHoy} aria-label="Dia siguiente">
-            &#8250;
-          </button>
-          {!esHoy && (
-            <button className="stkh-hoy" onClick={() => setFecha(hoyOperativo())}>
-              Hoy
-            </button>
-          )}
         </div>
-
-        <div className="stkh-busca">
+        <div className="stkc-busca">
           <input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar producto…"
+            placeholder="Buscar producto en esta zona…"
             autoComplete="off"
           />
           {busca && (
-            <button className="stkh-x" onClick={() => setBusca('')} aria-label="Limpiar">
+            <button className="stkc-x" onClick={() => setBusca('')} aria-label="Limpiar">
               ×
             </button>
           )}
         </div>
-
-        <div className="stkh-filtros">
-          {[
-            { k: 'todo', n: 'Todo' },
-            { k: 'consumo', n: 'Con consumo' },
-            { k: 'pedido', n: `Pedido (${pedidoLineas.length})` },
-            { k: 'sincontar', n: `Sin contar (${sinContar})` },
-            { k: 'nota', n: 'Con comentario' },
-            ...cats.map((c) => ({ k: c.codigo, n: c.nombre })),
-          ].map((x) => (
-            <button key={x.k} className="stkh-f" data-on={filtro === x.k ? '1' : '0'} onClick={() => setFiltro(x.k)}>
-              {x.n}
-            </button>
-          ))}
-        </div>
       </div>
 
-      {cargando ? (
-        <p className="stkh-msg">Cargando…</p>
-      ) : !d?.jornada ? (
-        <p className="stkh-msg">
-          No hay hoja del {fecha}.
-          <br />
-          Ese día no se abrió ninguna jornada.
-        </p>
-      ) : filas.length === 0 ? (
-        <p className="stkh-msg">Ningún producto coincide con la búsqueda.</p>
-      ) : (
-        <div className="stkh-scroll">
-          <table className="stkh-t">
-            <thead>
-              <tr>
-                <th>Producto</th>
-                <th>Inicial</th>
-                <th>Entradas</th>
-                <th>Final</th>
-                <th>Consumo</th>
-                <th>Pedido</th>
-                <th>Recibido</th>
-                <th>Estado</th>
-                <th style={{ textAlign: 'left' }}>Comentarios</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filas.map((x) => {
-                const etiqueta = [x.categoria, x.seccion].filter(Boolean).join(' · ')
-                const cab =
-                  filtro === 'todo' && !busca && etiqueta !== seccionActual
-                    ? ((seccionActual = etiqueta), etiqueta)
-                    : null
-                const arrastre = Math.abs((n(x.inicial) || 0) - (n(x.par) || 0)) > 0.001
-                return (
-                  <>
-                    {cab && (
-                      <tr className="stkh-sec" key={`s${x.linea_id}`}>
-                        <td colSpan={9}>{cab}</td>
-                      </tr>
-                    )}
-                    <tr key={x.linea_id} data-sin={x.contado ? '0' : '1'}>
-                      <td>{x.producto}</td>
-                      <td className="stkh-ini">
-                        {f(x.inicial)}
-                        {arrastre && <sup title={`El par es ${f(x.par)}`}>&#9650;</sup>}
-                      </td>
-                      <td>{n(x.entradas) ? f(x.entradas) : '—'}</td>
-                      <td>{x.contado ? f(x.final) : '—'}</td>
-                      <td className={x.contado ? 'stkh-cons' : ''}>{x.contado ? f(x.consumo) : '—'}</td>
-                      <td>
-                        <input
-                          className="stkh-in"
-                          inputMode="decimal"
-                          placeholder={x.contado ? f(x.pedido_sugerido) : ''}
-                          defaultValue={x.pedido ?? ''}
-                          onBlur={(e) => guardar(x.linea_id, 'pedido', e.target.value)}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          className="stkh-in"
-                          inputMode="decimal"
-                          defaultValue={x.recibido ?? ''}
-                          onBlur={(e) => guardar(x.linea_id, 'recibido', e.target.value)}
-                        />
-                      </td>
-                      <td>
-                        <select
-                          className="stkh-sel"
-                          defaultValue={x.estado_pedido}
-                          onChange={(e) => guardar(x.linea_id, 'estado', e.target.value)}
-                        >
-                          <option value="pendiente">Pendiente</option>
-                          <option value="subido">Subido</option>
-                          <option value="parcial">A medias</option>
-                          <option value="no_subido">No subido</option>
-                        </select>
-                      </td>
-                      <td className="stkh-nota">{x.nota || ''}</td>
-                    </tr>
-                  </>
-                )
-              })}
-            </tbody>
-          </table>
+      {filas.map((p) => {
+        const etiqueta = [p.categoria, p.seccion].filter(Boolean).join(' · ')
+        const cabecera =
+          !busca && etiqueta !== seccionActual ? ((seccionActual = etiqueta), etiqueta) : null
+        const key = `${p.linea_id}:${zona}`
+        const step = Number(p.paso) || 1
+        const puesto = valores[key] !== undefined
+        return (
+          <div key={p.linea_id}>
+            {cabecera && <div className="stkc-sec">{cabecera}</div>}
+            <div className="stkc-fila" data-done={puesto ? '1' : '0'}>
+              <span className="stkc-nom">
+                {p.nombre}
+                {step < 1 && <small>fracciones: 0,5 · 0,25 · 0,1</small>}
+              </span>
+              <span className="stkc-ctrl">
+                <button className="stkc-btn" aria-label="Restar" onClick={() => paso(p.linea_id, zona, -1, step)}>
+                  −
+                </button>
+                <input
+                  className="stkc-in"
+                  inputMode="decimal"
+                  placeholder="0"
+                  value={valores[key] ?? ''}
+                  onChange={(e) => cambiar(p.linea_id, zona, e.target.value)}
+                  onFocus={(e) => e.currentTarget.select()}
+                />
+                <button className="stkc-btn" aria-label="Sumar" onClick={() => paso(p.linea_id, zona, 1, step)}>
+                  +
+                </button>
+                <i className="stkc-dot" data-s={estados[p.linea_id] || 'idle'} />
+              </span>
+            </div>
+          </div>
+        )
+      })}
+
+      {busca && filas.length === 0 && (
+        <p className="stkc-msg">Ningún producto de esta zona coincide con «{busca}».</p>
+      )}
+
+      <div className="stkc-bar">
+        <div className="stkc-prog">
+          <i style={{ width: `${total ? (h / total) * 100 : 0}%` }} />
         </div>
-      )}
-
-      {d?.jornada && (
-        <p className="stkh-pie">
-          Inicial = lo que quedó ayer más lo que subió el economato; el triángulo marca las que no coinciden
-          con el par. Consumo = inicial + entradas − final. El pedido devuelve al par.
-        </p>
-      )}
-
-      <div className="stkh-bar">
-        <div className="stkh-barrow">
+        <div className="stkc-barrow">
           <span>
-            Consumo: <b>{Math.round(consumoTotal * 100) / 100}</b> · Pedido: <b>{pedidoLineas.length}</b> líneas
+            {h} de {total} contadas
           </span>
-          {sinContar > 0 ? (
-            <span style={{ color: 'var(--warn)' }}>Faltan {sinContar}</span>
+          {h === total ? (
+            <button className="stkc-link" onClick={() => setZona(null)}>
+              Zona completa · siguiente →
+            </button>
           ) : (
-            <span style={{ color: 'var(--ok)' }}>Todo contado</span>
+            <span style={{ color: 'var(--dim)' }}>Faltan {total - h}</span>
           )}
-        </div>
-        <div className="stkh-acc">
-          <button
-            className="pri"
-            disabled={ocupado || !d?.jornada}
-            onClick={async () => {
-              setOcupado(true)
-              await fetch('/api/stock/pedido', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ generar: true, jornadaId: d!.jornada!.id }),
-              })
-              await cargar(fecha)
-              setOcupado(false)
-            }}
-          >
-            {ocupado ? 'Calculando…' : 'Rellenar pedido'}
-          </button>
-          <button
-            disabled={!pedidoLineas.length}
-            onClick={async () => {
-              await navigator.clipboard.writeText(textoPedido)
-              setCopiado(true)
-              setTimeout(() => setCopiado(false), 2000)
-            }}
-          >
-            {copiado ? 'Copiado ✓' : 'Copiar pedido'}
-          </button>
-          <a
-            href={`mailto:?subject=${encodeURIComponent('Pedido economato ' + fecha)}&body=${encodeURIComponent(textoPedido)}`}
-          >
-            Enviar por email
-          </a>
-          <button onClick={descargarCsv} disabled={!d?.jornada}>
-            Descargar CSV
-          </button>
         </div>
       </div>
     </div>
