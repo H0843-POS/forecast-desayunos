@@ -156,7 +156,8 @@ const CSS = `
 `
 
 export default function PedidoPage() {
-  const [fecha, setFecha] = useState(hoyOperativo())
+  // Igual que en la hoja: la fecha se fija ya en el navegador.
+  const [fecha, setFecha] = useState<string | null>(null)
   const [d, setD] = useState<Datos | null>(null)
   const [cargando, setCargando] = useState(true)
   const [fallo, setFallo] = useState<string | null>(null)
@@ -235,7 +236,11 @@ export default function PedidoPage() {
   }
 
   useEffect(() => {
-    cargar(fecha)
+    setFecha(hoyOperativo())
+  }, [])
+
+  useEffect(() => {
+    if (fecha) cargar(fecha)
   }, [fecha])
 
   const accion = async (body: any, recargar = true) => {
@@ -249,6 +254,7 @@ export default function PedidoPage() {
   }
 
   const mover = (dias: number) => {
+    if (!fecha) return
     const x = new Date(fecha + 'T12:00:00')
     x.setDate(x.getDate() + dias)
     setFecha(x.toISOString().slice(0, 10))
@@ -304,6 +310,15 @@ export default function PedidoPage() {
     if (!d.lineas.length) l.push('(sin líneas)')
     return l.join('\n')
   }, [d, fecha])
+
+  if (!fecha) {
+    return (
+      <div className="stkp">
+        <style>{CSS}</style>
+        <p className="stkp-msg">Cargando…</p>
+      </div>
+    )
+  }
 
   const enviado = d?.pedido?.estado === 'enviado'
   const sinRecibir = (d?.lineas || []).filter((x) => x.estado === 'pendiente').length
