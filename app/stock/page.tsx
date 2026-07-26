@@ -243,9 +243,12 @@ export default function ConteoPage() {
               </button>
             )
           })}
-          <div style={{ marginTop: 24, textAlign: 'center' }}>
+          <div style={{ marginTop: 22, display: 'flex', gap: 8, justifyContent: 'center' }}>
             <Link className="stkc-link" href="/stock/hoja">
-              Ver la hoja del día →
+              Ver la hoja del día
+            </Link>
+            <Link className="stkc-link" href="/stock/pedido">
+              Ir al pedido
             </Link>
           </div>
         </div>
