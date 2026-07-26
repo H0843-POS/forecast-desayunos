@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 
 type Fila = {
@@ -34,14 +34,18 @@ const hoyOperativo = () => {
 }
 const sinTildes = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 
+// La tabla vive en su PROPIO contenedor con scroll. Asi la cabecera se pega a
+// top:0 de ese contenedor y no depende de medir el alto del panel superior,
+// que era justo lo que la descolocaba.
 const CSS = `
 .stkh{--bg:#12141a;--panel:#1b1f28;--line:#2f3644;--txt:#eef1f6;--dim:#8b94a7;--acc:#4ea3ff;
-  --ok:#3ddc97;--warn:#ffb454;--topH:0px;
-  background:var(--bg);color:var(--txt);min-height:100vh;padding-bottom:92px;
+  --ok:#3ddc97;--warn:#ffb454;
+  background:var(--bg);color:var(--txt);
+  height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden;
   font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 .stkh *{box-sizing:border-box}
-.stkh-top{position:sticky;top:0;z-index:40;background:rgba(18,20,26,.98);backdrop-filter:blur(8px);
-  border-bottom:1px solid var(--line);padding:10px 14px}
+
+.stkh-top{flex:0 0 auto;background:var(--bg);border-bottom:1px solid var(--line);padding:10px 14px}
 .stkh-row1{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
 .stkh-h1{font-size:16px;font-weight:650;margin:0}
 .stkh-sub{font-size:11.5px;color:var(--dim);margin:2px 0 0}
@@ -67,35 +71,39 @@ const CSS = `
 .stkh-f{flex:0 0 auto;padding:6px 11px;border-radius:999px;border:1px solid var(--line);
   background:var(--panel);color:var(--dim);font-size:12.5px;white-space:nowrap;cursor:pointer}
 .stkh-f[data-on="1"]{background:var(--acc);border-color:var(--acc);color:#08111c;font-weight:600}
-.stkh-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
-.stkh-t{border-collapse:separate;border-spacing:0;width:100%;min-width:660px;font-size:13.5px}
-.stkh-t th{position:sticky;top:var(--topH);z-index:25;background:#232834;color:#c3cbd9;
-  font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;padding:9px 10px;
-  text-align:right;white-space:nowrap;border-bottom:1px solid var(--line);
-  box-shadow:0 1px 0 var(--line)}
-.stkh-t th:first-child{left:0;z-index:30;text-align:left;min-width:180px}
-.stkh-t td:first-child{position:sticky;left:0;z-index:20;background:var(--bg);text-align:left;
-  min-width:180px;box-shadow:1px 0 0 var(--line)}
-.stkh-t td{padding:8px 10px;text-align:right;border-bottom:1px solid #20252f;
+
+.stkh-scroll{flex:1 1 auto;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch}
+.stkh-t{border-collapse:separate;border-spacing:0;width:100%;min-width:640px;font-size:13.5px}
+
+/* cabecera: se pega arriba del contenedor de scroll */
+.stkh-t thead th{position:sticky;top:0;z-index:20;background:#262c39;color:#cfd6e2;
+  font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;
+  padding:10px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
+.stkh-t thead th:first-child{left:0;z-index:30;text-align:left;min-width:170px}
+
+/* primera columna: se pega a la izquierda */
+.stkh-t tbody td:first-child{position:sticky;left:0;z-index:10;background:var(--bg);
+  text-align:left;min-width:170px}
+.stkh-t tbody td{padding:9px 10px;text-align:right;border-bottom:1px solid #20252f;
   font-variant-numeric:tabular-nums;white-space:nowrap}
-.stkh-t tr[data-sin="1"] td{color:#5d6577}
+.stkh-t tbody tr[data-sin="1"] td{color:#5d6577}
 .stkh-sec td{background:#171b23!important;color:var(--dim);font-size:10.5px;font-weight:700;
-  letter-spacing:.09em;text-transform:uppercase;text-align:left!important;padding:7px 10px;
-  position:sticky;left:0}
+  letter-spacing:.09em;text-transform:uppercase;text-align:left!important;padding:8px 10px;
+  position:sticky;left:0;z-index:12}
 .stkh-cons{font-weight:700;color:var(--txt)}
 .stkh-ini sup{color:var(--warn);font-size:10px;margin-left:2px}
-.stkh-nota{max-width:230px;white-space:normal;color:var(--warn);font-size:11.5px;
+.stkh-nota{max-width:230px;white-space:normal!important;color:var(--warn);font-size:11.5px;
   text-align:left!important;line-height:1.35}
 .stkh-msg{padding:56px 24px;text-align:center;color:var(--dim);font-size:14px;line-height:1.6}
-.stkh-pie{padding:16px 14px 6px;color:#5d6577;font-size:11.5px;line-height:1.5}
-.stkh-bar{position:fixed;left:0;right:0;bottom:0;z-index:45;background:rgba(27,31,40,.98);
-  backdrop-filter:blur(8px);border-top:1px solid var(--line);
+.stkh-pie{padding:14px;color:#5d6577;font-size:11.5px;line-height:1.5}
+
+.stkh-bar{flex:0 0 auto;background:var(--panel);border-top:1px solid var(--line);
   padding:10px 14px calc(10px + env(safe-area-inset-bottom))}
 .stkh-barrow{display:flex;gap:8px;align-items:center;justify-content:space-between;
   font-size:12px;color:var(--dim)}
 .stkh-barrow b{color:var(--txt)}
 .stkh-acc{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
-.stkh-acc button,.stkh-acc a{border:1px solid var(--line);border-radius:9px;background:var(--panel);
+.stkh-acc button,.stkh-acc a{border:1px solid var(--line);border-radius:9px;background:var(--bg);
   color:var(--txt);font-size:12.5px;font-weight:600;padding:9px 12px;cursor:pointer;
   text-decoration:none;font-family:inherit}
 .stkh-acc .pri{background:var(--acc);border-color:var(--acc);color:#08111c}
@@ -112,31 +120,9 @@ export default function HojaPage() {
   const [filtro, setFiltro] = useState('todo')
   const [busca, setBusca] = useState('')
 
-  const topRef = useRef<HTMLDivElement>(null)
-  const rootRef = useRef<HTMLDivElement>(null)
-
-  // La cabecera de la tabla se pega justo debajo del panel superior, que
-  // cambia de alto segun el movil. Se mide en vez de fijarla a ojo.
   useEffect(() => {
     setFecha(hoyOperativo())
   }, [])
-
-  useEffect(() => {
-    const el = topRef.current
-    const root = rootRef.current
-    if (!el || !root) return
-    const medir = () => root.style.setProperty('--topH', `${el.offsetHeight}px`)
-    medir()
-    const ro = new ResizeObserver(medir)
-    ro.observe(el)
-    window.addEventListener('orientationchange', medir)
-    return () => {
-      ro.disconnect()
-      window.removeEventListener('orientationchange', medir)
-    }
-  }, [d, fallo, cargando])
-
-  const esHoy = fecha === hoyOperativo()
 
   const cargar = async (fch: string | null) => {
     if (!fch) return
@@ -221,11 +207,13 @@ export default function HojaPage() {
     )
   }
 
+  const esHoy = fecha === hoyOperativo()
+
   return (
-    <div className="stkh" ref={rootRef}>
+    <div className="stkh">
       <style>{CSS}</style>
 
-      <div className="stkh-top" ref={topRef}>
+      <div className="stkh-top">
         <div className="stkh-row1">
           <div>
             <h1 className="stkh-h1">Hoja de stock</h1>
@@ -288,75 +276,74 @@ export default function HojaPage() {
         </div>
       </div>
 
-      {fallo ? (
-        <p className="stkh-msg">
-          No se pudo cargar la hoja.
-          <br />
-          {fallo}
-        </p>
-      ) : cargando ? (
-        <p className="stkh-msg">Cargando…</p>
-      ) : !d?.jornada ? (
-        <p className="stkh-msg">
-          No hay hoja del {fecha}.
-          <br />
-          Ese día no se abrió ninguna jornada.
-        </p>
-      ) : filas.length === 0 ? (
-        <p className="stkh-msg">Ningún producto coincide con la búsqueda.</p>
-      ) : (
-        <div className="stkh-scroll">
-          <table className="stkh-t">
-            <thead>
-              <tr>
-                <th>Producto</th>
-                <th>Inicial</th>
-                <th>Entradas</th>
-                <th>Final</th>
-                <th>Consumo</th>
-                <th style={{ textAlign: 'left' }}>Comentarios</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filas.map((x) => {
-                const etiqueta = [x.categoria, x.seccion].filter(Boolean).join(' · ')
-                const cab =
-                  filtro === 'todo' && !busca && etiqueta !== seccionActual
-                    ? ((seccionActual = etiqueta), etiqueta)
-                    : null
-                const arrastre = Math.abs((n(x.inicial) || 0) - (n(x.par) || 0)) > 0.001
-                return (
-                  <Fragment key={x.linea_id}>
-                    {cab && (
-                      <tr className="stkh-sec">
-                        <td colSpan={6}>{cab}</td>
+      <div className="stkh-scroll">
+        {fallo ? (
+          <p className="stkh-msg">
+            No se pudo cargar la hoja.
+            <br />
+            {fallo}
+          </p>
+        ) : cargando ? (
+          <p className="stkh-msg">Cargando…</p>
+        ) : !d?.jornada ? (
+          <p className="stkh-msg">
+            No hay hoja del {fecha}.
+            <br />
+            Ese día no se abrió ninguna jornada.
+          </p>
+        ) : filas.length === 0 ? (
+          <p className="stkh-msg">Ningún producto coincide con la búsqueda.</p>
+        ) : (
+          <>
+            <table className="stkh-t">
+              <thead>
+                <tr>
+                  <th>Producto</th>
+                  <th>Inicial</th>
+                  <th>Entradas</th>
+                  <th>Final</th>
+                  <th>Consumo</th>
+                  <th style={{ textAlign: 'left' }}>Comentarios</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filas.map((x) => {
+                  const etiqueta = [x.categoria, x.seccion].filter(Boolean).join(' · ')
+                  const cab =
+                    filtro === 'todo' && !busca && etiqueta !== seccionActual
+                      ? ((seccionActual = etiqueta), etiqueta)
+                      : null
+                  const arrastre = Math.abs((n(x.inicial) || 0) - (n(x.par) || 0)) > 0.001
+                  return (
+                    <Fragment key={x.linea_id}>
+                      {cab && (
+                        <tr className="stkh-sec">
+                          <td colSpan={6}>{cab}</td>
+                        </tr>
+                      )}
+                      <tr data-sin={x.contado ? '0' : '1'}>
+                        <td>{x.producto}</td>
+                        <td className="stkh-ini">
+                          {f(x.inicial)}
+                          {arrastre && <sup title={`El par es ${f(x.par)}`}>&#9650;</sup>}
+                        </td>
+                        <td>{n(x.entradas) ? f(x.entradas) : '—'}</td>
+                        <td>{x.contado ? f(x.final) : '—'}</td>
+                        <td className={x.contado ? 'stkh-cons' : ''}>{x.contado ? f(x.consumo) : '—'}</td>
+                        <td className="stkh-nota">{x.nota || ''}</td>
                       </tr>
-                    )}
-                    <tr data-sin={x.contado ? '0' : '1'}>
-                      <td>{x.producto}</td>
-                      <td className="stkh-ini">
-                        {f(x.inicial)}
-                        {arrastre && <sup title={`El par es ${f(x.par)}`}>&#9650;</sup>}
-                      </td>
-                      <td>{n(x.entradas) ? f(x.entradas) : '—'}</td>
-                      <td>{x.contado ? f(x.final) : '—'}</td>
-                      <td className={x.contado ? 'stkh-cons' : ''}>{x.contado ? f(x.consumo) : '—'}</td>
-                      <td className="stkh-nota">{x.nota || ''}</td>
-                    </tr>
-                  </Fragment>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {d?.jornada && (
-        <p className="stkh-pie">
-          Inicial = lo que quedó ayer más lo que subió el economato; el triángulo marca las que no coinciden
-          con el par. Consumo = inicial + entradas − final.
-        </p>
-      )}
+                    </Fragment>
+                  )
+                })}
+              </tbody>
+            </table>
+            <p className="stkh-pie">
+              Inicial = lo que quedó ayer más lo que subió el economato; el triángulo marca las que no
+              coinciden con el par. Consumo = inicial + entradas − final.
+            </p>
+          </>
+        )}
+      </div>
 
       <div className="stkh-bar">
         <div className="stkh-barrow">
