@@ -250,6 +250,9 @@ export default function ConteoPage() {
             <Link className="stkc-link" href="/stock/pedido">
               Ir al pedido
             </Link>
+            <Link className="stkc-link" href="/stock/ajustes">
+              Ajustes
+            </Link>
           </div>
         </div>
       </div>
