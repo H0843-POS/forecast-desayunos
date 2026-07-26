@@ -177,7 +177,8 @@ export default function PedidoPage() {
 
   const esHoy = fecha === hoyOperativo()
 
-  const cargar = async (fch: string) => {
+  const cargar = async (fch: string | null) => {
+    if (!fch) return
     setCargando(true)
     setFallo(null)
     try {
