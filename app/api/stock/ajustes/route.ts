@@ -99,6 +99,12 @@ export async function POST(req: Request) {
         p_prioridad: Number(b.prioridad) || 0,
       })
 
+    case 'aplicar':
+      return rpc('stk_jornada_resincronizar', {
+        p_fecha: b.fecha ? String(b.fecha) : null,
+        p_perfil: b.usarPerfil ? perfil : null,
+      })
+
     case 'cal_del':
       return rpc('stk_calendario_del', { p_id: Number(b.id) })
 
