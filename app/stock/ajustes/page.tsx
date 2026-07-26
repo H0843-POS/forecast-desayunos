@@ -101,6 +101,8 @@ const CSS = `
   color:#5d6577;font-size:11.5px;cursor:pointer;font-family:inherit}
 .stka-zb[data-on="1"]{background:#1d3348;border-color:#37658f;color:#9ccbf5;
   font-weight:600}
+.stka-aviso{margin:12px 14px;background:#152219;border:1px solid #2a4a3c;border-radius:12px;
+  padding:12px;font-size:12.5px;color:#a9d8c2;line-height:1.6}
 .stka-msg{padding:50px 24px;text-align:center;color:var(--dim);font-size:14px;line-height:1.6}
 .stka-bar{flex:0 0 auto;background:var(--panel);border-top:1px solid var(--line);
   padding:10px 14px calc(10px + env(safe-area-inset-bottom));
@@ -120,6 +122,8 @@ export default function AjustesPage() {
   const [verCal, setVerCal] = useState(false)
   const [desde, setDesde] = useState('')
   const [hasta, setHasta] = useState('')
+  const [aplicando, setAplicando] = useState(false)
+  const [aviso, setAviso] = useState<string | null>(null)
 
   const cargar = async (p: number | null) => {
     setCargando(true)
@@ -244,6 +248,8 @@ export default function AjustesPage() {
           <p className="stka-msg">Cargando…</p>
         ) : (
           <>
+            {aviso && <div className="stka-aviso">{aviso}</div>}
+
             <div className="stka-info">
               El <b>stock inicial</b> es lo que debe haber al empezar el día. El pedido siempre devuelve a
               ese número.
@@ -402,19 +408,60 @@ export default function AjustesPage() {
 
       <div className="stka-bar">
         <span>
-          <b>{productos.length}</b> productos · <b>{propios}</b> con valor propio
+          <b>{productos.length}</b> productos · <b>{propios}</b> propios
         </span>
-        {actual && actual.padre && (
+        <span style={{ display: 'flex', gap: 7 }}>
+          {actual && actual.padre && (
+            <button
+              onClick={async () => {
+                if (!confirm(`¿Copiar todos los valores de ${actual.padre} a ${actual.nombre}?`)) return
+                const padre = d?.perfiles.find((x) => x.id === actual.hereda_de)
+                if (padre) await accion({ accion: 'copiar', origen: padre.id, destino: actual.id })
+              }}
+            >
+              Copiar del padre
+            </button>
+          )}
           <button
+            disabled={aplicando}
+            style={{ background: 'var(--acc)', borderColor: 'var(--acc)', color: '#08111c' }}
             onClick={async () => {
-              if (!confirm(`¿Copiar todos los valores de ${actual.padre} a ${actual.nombre}?`)) return
-              const padre = d?.perfiles.find((x) => x.id === actual.hereda_de)
-              if (padre) await accion({ accion: 'copiar', origen: padre.id, destino: actual.id })
+              if (
+                !confirm(
+                  `¿Aplicar los valores de «${actual?.nombre}» a la jornada de hoy?\n\n` +
+                    'Se actualizará el stock inicial de la hoja de hoy. Lo que ya esté contado no se toca.'
+                )
+              )
+                return
+              setAplicando(true)
+              setAviso(null)
+              try {
+                const r = await fetch('/api/stock/ajustes', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ accion: 'aplicar', perfilId: perfil, usarPerfil: true }),
+                })
+                const j = await r.json()
+                const x = j?.data
+                if (!r.ok || x?.error) throw new Error(x?.error || j?.error || 'no se pudo aplicar')
+                setAviso(
+                  `Jornada del ${x.fecha} actualizada con el perfil ${x.perfil}: ` +
+                    `${x.par_actualizado} stock inicial cambiado, ${x.anadidos} productos añadidos, ` +
+                    `${x.quitados} quitados. ${x.total} referencias en la hoja.` +
+                    (x.contados_fuera_de_zona
+                      ? ` Ojo: ${x.contados_fuera_de_zona} ya contados siguen en la hoja aunque su zona esté apagada.`
+                      : '')
+                )
+              } catch (e: any) {
+                setAviso('No se pudo aplicar: ' + e.message)
+              } finally {
+                setAplicando(false)
+              }
             }}
           >
-            Copiar del padre
+            {aplicando ? 'Aplicando…' : 'Aplicar a hoy'}
           </button>
-        )}
+        </span>
       </div>
     </div>
   )
