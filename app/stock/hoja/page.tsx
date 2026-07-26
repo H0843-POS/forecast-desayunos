@@ -229,6 +229,7 @@ export default function HojaPage() {
               Hoja
             </Link>
             <Link href="/stock/pedido">Pedido</Link>
+            <Link href="/stock/ajustes">Ajustes</Link>
           </nav>
         </div>
 
