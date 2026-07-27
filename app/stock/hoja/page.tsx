@@ -92,8 +92,16 @@ const CSS = `
   position:sticky;left:0;z-index:12}
 .stkh-cons{font-weight:700;color:var(--txt)}
 .stkh-ini sup{color:var(--warn);font-size:10px;margin-left:2px}
-.stkh-nota{max-width:230px;white-space:normal!important;color:var(--warn);font-size:11.5px;
-  text-align:left!important;line-height:1.35}
+.stkh-nota{padding:5px 6px!important;min-width:210px}
+.stkh-nota textarea{width:100%;min-width:200px;min-height:34px;border-radius:8px;
+  border:1px solid transparent;background:transparent;color:var(--warn);font-size:12px;
+  font-family:inherit;line-height:1.35;padding:5px 7px;resize:vertical;display:block}
+.stkh-nota textarea::placeholder{color:#404a5c}
+.stkh-nota textarea:hover{border-color:var(--line)}
+.stkh-nota textarea:focus{outline:none;border-color:var(--acc);background:#12151c;color:var(--txt)}
+.stkh-guardado{position:fixed;left:50%;transform:translateX(-50%);bottom:96px;z-index:60;
+  background:#1d3a2c;border:1px solid #2a4a3c;color:#a9d8c2;font-size:12.5px;
+  padding:8px 14px;border-radius:999px;pointer-events:none}
 .stkh-msg{padding:56px 24px;text-align:center;color:var(--dim);font-size:14px;line-height:1.6}
 .stkh-pie{padding:14px;color:#5d6577;font-size:11.5px;line-height:1.5}
 
@@ -119,6 +127,7 @@ export default function HojaPage() {
   const [fallo, setFallo] = useState<string | null>(null)
   const [filtro, setFiltro] = useState('todo')
   const [busca, setBusca] = useState('')
+  const [guardado, setGuardado] = useState(false)
 
   useEffect(() => {
     setFecha(hoyOperativo())
@@ -150,6 +159,16 @@ export default function HojaPage() {
   useEffect(() => {
     if (fecha) cargar(fecha)
   }, [fecha])
+
+  const guardarNota = async (lineaId: number, texto: string) => {
+    await fetch('/api/stock/resumen', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lineaId, nota: texto }),
+    })
+    setGuardado(true)
+    setTimeout(() => setGuardado(false), 1600)
+  }
 
   const mover = (dias: number) => {
     if (!fecha) return
@@ -331,7 +350,19 @@ export default function HojaPage() {
                         <td>{n(x.entradas) ? f(x.entradas) : '—'}</td>
                         <td>{x.contado ? f(x.final) : '—'}</td>
                         <td className={x.contado ? 'stkh-cons' : ''}>{x.contado ? f(x.consumo) : '—'}</td>
-                        <td className="stkh-nota">{x.nota || ''}</td>
+                        <td className="stkh-nota">
+                          <textarea
+                            rows={1}
+                            defaultValue={x.nota || ''}
+                            placeholder="Comentario…"
+                            aria-label={`Comentario de ${x.producto}`}
+                            onBlur={(e) => {
+                              if ((x.nota || '') === e.target.value.trim()) return
+                              x.nota = e.target.value.trim() || null
+                              guardarNota(x.linea_id, e.target.value)
+                            }}
+                          />
+                        </td>
                       </tr>
                     </Fragment>
                   )
@@ -345,6 +376,8 @@ export default function HojaPage() {
           </>
         )}
       </div>
+
+      {guardado && <div className="stkh-guardado">Comentario guardado</div>}
 
       <div className="stkh-bar">
         <div className="stkh-barrow">
