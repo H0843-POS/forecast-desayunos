@@ -90,6 +90,7 @@ const CSS = `
 .stkp-sug button:hover{background:#2b3140}
 .stkp-sug small{display:block;color:var(--dim);font-size:11px;margin-top:2px}
 .stkp-sug .nuevo{color:var(--acc);font-weight:650}
+.stkp-ayuda{margin:0 14px 12px;font-size:11.5px;color:#5d6577;line-height:1.5}
 .stkp-arow{display:flex;gap:8px;margin-top:8px}
 .stkp-arow input{height:42px;border-radius:10px;border:1px solid var(--line);background:#12151c;
   color:var(--txt);font-size:15px;font-family:inherit;padding:0 10px;min-width:0}
@@ -261,13 +262,27 @@ export default function PedidoPage() {
     setFecha(x.toISOString().slice(0, 10))
   }
 
+  const enPedido = useMemo(
+    () => new Map((d?.lineas || []).map((l) => [l.producto_id, l.unidades])),
+    [d]
+  )
+
+  // Se sugieren TODOS los que casan, incluidos los que ya estan en el pedido:
+  // ocultarlos hacia pensar que el articulo se habia perdido. Los extras salen
+  // primero, y los que ya estan puestos se marcan en vez de esconderse.
   const sugerencias = useMemo(() => {
-    if (!d || texto.trim().length < 2) return []
+    if (!d || texto.trim().length < 1) return []
     const q = sinTildes(texto.trim())
-    const yaPuestos = new Set(d.lineas.map((l) => l.producto_id))
     return d.catalogo
-      .filter((c) => sinTildes(c.nombre).includes(q) && !yaPuestos.has(c.id))
-      .slice(0, 8)
+      .filter((c) => sinTildes(c.nombre).includes(q))
+      .sort((a, b) => {
+        const ea = sinTildes(a.nombre).startsWith(q) ? 0 : 1
+        const eb = sinTildes(b.nombre).startsWith(q) ? 0 : 1
+        if (ea !== eb) return ea - eb
+        if (a.extra !== b.extra) return a.extra ? -1 : 1
+        return a.nombre.localeCompare(b.nombre)
+      })
+      .slice(0, 10)
   }, [d, texto])
 
   const existeExacto = useMemo(() => {
@@ -418,22 +433,30 @@ export default function PedidoPage() {
                   if (e.key === 'Escape') setAbierto(false)
                 }}
               />
-              {abierto && texto.trim().length >= 2 && (
+              {abierto && texto.trim().length >= 1 && (
                 <div className="stkp-sug">
-                  {sugerencias.map((c) => (
-                    <button
-                      key={c.id}
-                      onClick={() => {
-                        setSel(c)
-                        setTexto(c.nombre)
-                        setUnidad(c.unidad || '')
-                        setAbierto(false)
-                      }}
-                    >
-                      {c.nombre}
-                      <small>{c.categoria}</small>
-                    </button>
-                  ))}
+                  {sugerencias.map((c) => {
+                    const ya = enPedido.get(c.id)
+                    return (
+                      <button
+                        key={c.id}
+                        onClick={() => {
+                          setSel(c)
+                          setTexto(c.nombre)
+                          setUnidad(c.unidad || '')
+                          if (ya) setCant(f(ya))
+                          setAbierto(false)
+                        }}
+                      >
+                        {c.nombre}
+                        <small>
+                          {c.extra ? 'Artículo de economato' : c.categoria}
+                          {c.unidad ? ` · ${c.unidad}` : ''}
+                          {ya ? ` — ya en el pedido (${f(ya)}), se actualizará` : ''}
+                        </small>
+                      </button>
+                    )
+                  })}
                   {!existeExacto && (
                     <button
                       onClick={() => {
@@ -442,7 +465,11 @@ export default function PedidoPage() {
                       }}
                     >
                       <span className="nuevo">Crear «{texto.trim()}»</span>
-                      <small>artículo nuevo, se guarda para la próxima vez</small>
+                      <small>
+                        {sugerencias.length
+                          ? 'artículo nuevo, distinto de los de arriba'
+                          : 'artículo nuevo, queda guardado para la próxima vez'}
+                      </small>
                     </button>
                   )}
                 </div>
@@ -469,6 +496,10 @@ export default function PedidoPage() {
               </button>
             </div>
           </div>
+          <p className="stkp-ayuda">
+            Los artículos que crees aquí (pajitas, servilletas…) quedan guardados y te los sugerirá la
+            próxima vez. No aparecen en el conteo porque no se cuentan.
+          </p>
 
           {d.lineas.length === 0 ? (
             <p className="stkp-msg">
