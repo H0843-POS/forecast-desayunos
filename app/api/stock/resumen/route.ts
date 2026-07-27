@@ -27,3 +27,23 @@ export async function GET(req: Request) {
     )
   }
 }
+
+// POST /api/stock/resumen   { lineaId, nota }
+export async function POST(req: Request) {
+  let b: any
+  try {
+    b = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'Cuerpo no valido' }, { status: 400 })
+  }
+  const lineaId = Number(b?.lineaId)
+  if (!Number.isFinite(lineaId)) {
+    return NextResponse.json({ error: 'Falta lineaId' }, { status: 400 })
+  }
+  const { error } = await supabaseStock.rpc('stk_guardar_nota', {
+    p_linea_id: lineaId,
+    p_nota: String(b?.nota ?? '').slice(0, 500),
+  })
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
+}
