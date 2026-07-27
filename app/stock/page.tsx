@@ -3,15 +3,30 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 
-type Ubicacion = { id: number; codigo: string; nombre: string }
+type Ubicacion = { id: number; codigo: string; nombre: string; almacen: boolean }
+type Mov = {
+  id: number
+  producto: string
+  producto_id: number
+  origen: string
+  destino: string
+  entrada: boolean
+  unidades: string
+  quien: string | null
+  nota: string | null
+  hora: string
+}
 type Producto = {
   linea_id: number
+  producto_id: number
   nombre: string
   categoria: string
   cat_codigo: string
   seccion: string | null
   paso: string
   par: string
+  nota: string | null
+  movs: string
   ubicaciones: number[] | null
   conteos: Record<string, string>
 }
@@ -42,6 +57,44 @@ const CSS = `
 .stkc-busca input:focus{outline:2px solid var(--acc);outline-offset:-1px}
 .stkc-x{position:absolute;right:4px;top:4px;width:30px;height:30px;border:0;background:none;
   color:var(--dim);font-size:17px;cursor:pointer}
+.stkc-notabtn{background:none;border:0;color:var(--dim);font-size:11px;padding:6px 4px 0;
+  cursor:pointer;font-family:inherit}
+.stkc-notabtn[data-has="1"]{color:var(--warn)}
+.stkc-nota{width:calc(100% - 32px);margin:6px 16px 10px;min-height:52px;border-radius:10px;
+  border:1px solid var(--line);background:#12151c;color:var(--txt);padding:9px 10px;font-size:14px;
+  font-family:inherit;resize:vertical}
+.stkc-nota:focus{outline:2px solid var(--acc);outline-offset:-1px}
+.stkc-mbtn{width:100%;text-align:left;background:var(--panel);border:1px solid var(--line);
+  border-radius:12px;padding:12px 14px;color:var(--txt);font-size:14px;font-weight:600;
+  cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:space-between}
+.stkc-mbtn small{color:var(--dim);font-size:11.5px;font-weight:400}
+.stkc-mv{margin:0 14px 12px;background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  padding:12px}
+.stkc-mv h3{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--dim);margin:0 0 10px}
+.stkc-mv input,.stkc-mv select{width:100%;height:40px;border-radius:10px;border:1px solid var(--line);
+  background:#12151c;color:var(--txt);padding:0 10px;font-size:14.5px;font-family:inherit;
+  margin-bottom:8px}
+.stkc-mv input:focus,.stkc-mv select:focus{outline:2px solid var(--acc);outline-offset:-1px}
+.stkc-mrow{display:flex;gap:8px}
+.stkc-mrow > *{flex:1 1 0;min-width:0}
+.stkc-mcant{flex:0 0 78px!important;text-align:center;font-weight:650}
+.stkc-mv .ok{width:100%;height:44px;border-radius:11px;border:0;background:var(--acc);color:#08111c;
+  font-size:14.5px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:2px}
+.stkc-mv .ok:disabled{opacity:.4}
+.stkc-msug{position:relative}
+.stkc-msug .lista{position:absolute;top:44px;left:0;right:0;z-index:60;background:var(--panel2);
+  border:1px solid var(--line);border-radius:10px;max-height:200px;overflow-y:auto;
+  box-shadow:0 10px 30px rgba(0,0,0,.5)}
+.stkc-msug .lista button{display:block;width:100%;text-align:left;background:none;border:0;
+  border-bottom:1px solid #2b3140;color:var(--txt);font-size:14px;padding:10px 12px;cursor:pointer;
+  font-family:inherit}
+.stkc-ml{font-size:12.5px;color:#c8d0dc;padding:7px 0;border-bottom:1px solid #242a36;
+  display:flex;align-items:center;gap:8px;line-height:1.4}
+.stkc-ml b{color:var(--txt)}
+.stkc-ml em{font-style:normal;color:var(--ok)}
+.stkc-ml button{margin-left:auto;background:none;border:0;color:var(--dim);font-size:15px;
+  cursor:pointer;padding:2px 6px;flex:0 0 auto}
 .stkc-sec{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--dim);
   padding:20px 16px 8px;position:sticky;top:124px;background:var(--bg);z-index:10}
 .stkc-fila{display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid #20252f}
@@ -91,6 +144,15 @@ export default function ConteoPage() {
   const [borrador, setBorrador] = useState('')
   const [zona, setZona] = useState<number | null>(null)
   const [busca, setBusca] = useState('')
+  const [nota, setNota] = useState<number | null>(null)
+  const [movs, setMovs] = useState<Mov[]>([])
+  const [verMov, setVerMov] = useState(false)
+  const [mProd, setMProd] = useState('')
+  const [mProdId, setMProdId] = useState<number | null>(null)
+  const [mOrigen, setMOrigen] = useState<number | null>(null)
+  const [mDestino, setMDestino] = useState<number | null>(null)
+  const [mCant, setMCant] = useState('1')
+  const [mSug, setMSug] = useState(false)
   const [valores, setValores] = useState<Record<string, string>>({})
   const [estados, setEstados] = useState<Record<number, Estado>>({})
   const timers = useRef<Record<string, any>>({})
@@ -149,6 +211,34 @@ export default function ConteoPage() {
     },
     [quien]
   )
+
+  const guardarNota = useCallback(async (lineaId: number, texto: string) => {
+    setEstados((s) => ({ ...s, [lineaId]: 'guardando' }))
+    try {
+      const r = await fetch('/api/stock/conteo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lineaId, nota: texto }),
+      })
+      if (!r.ok) throw new Error()
+      setEstados((s) => ({ ...s, [lineaId]: 'guardado' }))
+    } catch {
+      setEstados((s) => ({ ...s, [lineaId]: 'error' }))
+    }
+  }, [])
+
+  const cargarMovs = useCallback(async () => {
+    try {
+      const r = await fetch('/api/stock/movimientos')
+      if (r.ok) setMovs(await r.json())
+    } catch {
+      /* sin movimientos */
+    }
+  }, [])
+
+  useEffect(() => {
+    cargarMovs()
+  }, [cargarMovs])
 
   const cambiar = (lineaId: number, ubicacionId: number, valor: string) => {
     setValores((v) => ({ ...v, [`${lineaId}:${ubicacionId}`]: valor }))
@@ -243,6 +333,139 @@ export default function ConteoPage() {
               </button>
             )
           })}
+          <button className="stkc-mbtn" style={{ marginTop: 14 }} onClick={() => setVerMov(!verMov)}>
+            <span>
+              Reposición y traspasos
+              <br />
+              <small>lo que baja del almacén o se mueve entre zonas</small>
+            </span>
+            <span style={{ color: 'var(--acc)' }}>{movs.length || ''} {verMov ? '▲' : '▼'}</span>
+          </button>
+
+          {verMov && (
+            <div className="stkc-mv" style={{ margin: '10px 0 0' }}>
+              <h3>Registrar movimiento</h3>
+              <div className="stkc-msug">
+                <input
+                  value={mProd}
+                  placeholder="Producto…"
+                  autoComplete="off"
+                  onChange={(e) => {
+                    setMProd(e.target.value)
+                    setMProdId(null)
+                    setMSug(true)
+                  }}
+                />
+                {mSug && mProd.trim().length >= 2 && !mProdId && (
+                  <div className="lista">
+                    {(hoja?.productos || [])
+                      .filter((x) => sinTildes(x.nombre).includes(sinTildes(mProd.trim())))
+                      .slice(0, 8)
+                      .map((x) => (
+                        <button
+                          key={x.linea_id}
+                          onClick={() => {
+                            setMProd(x.nombre)
+                            setMProdId(x.producto_id)
+                            setMSug(false)
+                          }}
+                        >
+                          {x.nombre}
+                        </button>
+                      ))}
+                  </div>
+                )}
+              </div>
+              <div className="stkc-mrow">
+                <select
+                  value={mOrigen ?? ''}
+                  onChange={(e) => setMOrigen(Number(e.target.value) || null)}
+                  aria-label="Origen"
+                >
+                  <option value="">Desde…</option>
+                  {(hoja?.ubicaciones || []).map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.nombre}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={mDestino ?? ''}
+                  onChange={(e) => setMDestino(Number(e.target.value) || null)}
+                  aria-label="Destino"
+                >
+                  <option value="">Hasta…</option>
+                  {(hoja?.ubicaciones || [])
+                    .filter((u) => !u.almacen)
+                    .map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.nombre}
+                      </option>
+                    ))}
+                </select>
+                <input
+                  className="stkc-mcant"
+                  inputMode="decimal"
+                  value={mCant}
+                  onChange={(e) => setMCant(e.target.value)}
+                  onFocus={(e) => e.currentTarget.select()}
+                  aria-label="Cantidad"
+                />
+              </div>
+              <button
+                className="ok"
+                disabled={!mProdId || !mOrigen || !mDestino || mOrigen === mDestino}
+                onClick={async () => {
+                  await fetch('/api/stock/movimientos', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      productoId: mProdId,
+                      origenId: mOrigen,
+                      destinoId: mDestino,
+                      unidades: mCant,
+                      quien,
+                    }),
+                  })
+                  setMProd('')
+                  setMProdId(null)
+                  setMCant('1')
+                  await cargarMovs()
+                }}
+              >
+                Registrar
+              </button>
+
+              {movs.map((m) => (
+                <div className="stkc-ml" key={m.id}>
+                  <span>
+                    {m.hora} · <b>{m.unidades}</b> {m.producto}
+                    <br />
+                    {m.origen} → {m.destino} {m.entrada && <em>entrada</em>}
+                  </span>
+                  <button
+                    aria-label="Borrar movimiento"
+                    onClick={async () => {
+                      await fetch('/api/stock/movimientos', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ accion: 'borrar', id: m.id }),
+                      })
+                      await cargarMovs()
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              {movs.length === 0 && (
+                <div className="stkc-ml" style={{ color: 'var(--dim)', borderBottom: 0 }}>
+                  Nada registrado hoy.
+                </div>
+              )}
+            </div>
+          )}
+
           <div style={{ marginTop: 22, display: 'flex', gap: 8, justifyContent: 'center' }}>
             <Link className="stkc-link" href="/stock/hoja">
               Ver la hoja del día
@@ -333,6 +556,28 @@ export default function ConteoPage() {
                 <i className="stkc-dot" data-s={estados[p.linea_id] || 'idle'} />
               </span>
             </div>
+            <div style={{ padding: '0 16px' }}>
+              <button
+                className="stkc-notabtn"
+                data-has={p.nota ? '1' : '0'}
+                onClick={() => setNota(nota === p.linea_id ? null : p.linea_id)}
+              >
+                {p.nota ? `Comentario: ${p.nota.slice(0, 44)}${p.nota.length > 44 ? '…' : ''}` : '+ comentario'}
+              </button>
+            </div>
+            {nota === p.linea_id && (
+              <textarea
+                className="stkc-nota"
+                defaultValue={p.nota || ''}
+                autoFocus
+                placeholder="Rotura, invitación, botella prestada, descuadre…"
+                onBlur={(e) => {
+                  p.nota = e.target.value.trim() || null
+                  guardarNota(p.linea_id, e.target.value)
+                  setNota(null)
+                }}
+              />
+            )}
           </div>
         )
       })}
