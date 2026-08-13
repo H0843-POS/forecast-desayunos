@@ -46,13 +46,14 @@ export async function POST(req: Request) {
     const { data, error } = await supabaseStock.rpc('stk_inicial_restablecer', {
       p_linea_id: lineaId,
       p_quien: b?.quien ? String(b.quien).slice(0, 80) : null,
+      p_valor: b?.valor === undefined || b?.valor === null || b?.valor === '' ? null : Number(b.valor),
     })
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ ok: true, inicial: data })
   }
 
-  if (b?.accion === 'heredar_inicial') {
-    const { error } = await supabaseStock.rpc('stk_inicial_heredar_de_ayer', {
+  if (b?.accion === 'quitar_override') {
+    const { error } = await supabaseStock.rpc('stk_inicial_quitar_override', {
       p_linea_id: lineaId,
     })
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
