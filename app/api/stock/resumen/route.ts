@@ -29,6 +29,7 @@ export async function GET(req: Request) {
 }
 
 // POST /api/stock/resumen   { lineaId, nota }
+// POST /api/stock/resumen   { lineaId, accion: 'restablecer_inicial' | 'heredar_inicial', quien? }
 export async function POST(req: Request) {
   let b: any
   try {
@@ -40,6 +41,24 @@ export async function POST(req: Request) {
   if (!Number.isFinite(lineaId)) {
     return NextResponse.json({ error: 'Falta lineaId' }, { status: 400 })
   }
+
+  if (b?.accion === 'restablecer_inicial') {
+    const { data, error } = await supabaseStock.rpc('stk_inicial_restablecer', {
+      p_linea_id: lineaId,
+      p_quien: b?.quien ? String(b.quien).slice(0, 80) : null,
+    })
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true, inicial: data })
+  }
+
+  if (b?.accion === 'heredar_inicial') {
+    const { error } = await supabaseStock.rpc('stk_inicial_heredar_de_ayer', {
+      p_linea_id: lineaId,
+    })
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true })
+  }
+
   const { error } = await supabaseStock.rpc('stk_guardar_nota', {
     p_linea_id: lineaId,
     p_nota: String(b?.nota ?? '').slice(0, 500),
