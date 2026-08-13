@@ -16,7 +16,7 @@ type Fila = {
   consumo: string
   nota: string | null
   contado: boolean
-  origen_inicial: 'manual' | 'heredado' | 'nuevo'
+  origen_inicial: 'manual' | 'par'
 }
 type Datos = {
   jornada: { id: number; fecha: string; estado: string; perfil: string | null } | null
@@ -96,9 +96,8 @@ const CSS = `
 .stkh-ini-v{display:flex;align-items:center;justify-content:flex-end;gap:5px}
 .stkh-badge{font-size:9px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;
   padding:2px 5px;border-radius:5px;white-space:nowrap}
-.stkh-badge[data-o="heredado"]{background:#1d2a3a;color:#7fa8d6}
+.stkh-badge[data-o="par"]{background:#1d2a3a;color:#7fa8d6}
 .stkh-badge[data-o="manual"]{background:#3a2a1d;color:var(--warn)}
-.stkh-badge[data-o="nuevo"]{background:#1d3a2c;color:var(--ok)}
 .stkh-reset{border:1px solid var(--line);border-radius:6px;background:none;color:var(--dim);
   font-size:9.5px;padding:2px 6px;cursor:pointer;font-family:inherit;white-space:nowrap;
   margin-top:3px}
@@ -182,14 +181,14 @@ export default function HojaPage() {
   }
 
   const [tocando, setTocando] = useState<number | null>(null)
-  const tocarInicial = async (lineaId: number, accion: 'restablecer_inicial' | 'heredar_inicial') => {
+  const tocarInicial = async (lineaId: number, accion: 'restablecer_inicial' | 'quitar_override', valor?: number) => {
     setTocando(lineaId)
     try {
       const quien = localStorage.getItem('stk_quien')
       const r = await fetch('/api/stock/resumen', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lineaId, accion, quien }),
+        body: JSON.stringify({ lineaId, accion, quien, valor }),
       })
       if (!r.ok) {
         const j = await r.json().catch(() => null)
@@ -201,6 +200,17 @@ export default function HojaPage() {
     } finally {
       setTocando(null)
     }
+  }
+
+  const fijarInicial = (lineaId: number, parActual: number) => {
+    const txt = prompt('Stock inicial de hoy para esta línea:', f(parActual))
+    if (txt === null) return
+    const valor = Number(txt.replace(',', '.'))
+    if (!Number.isFinite(valor) || valor < 0) {
+      alert('Cantidad no válida')
+      return
+    }
+    tocarInicial(lineaId, 'restablecer_inicial', valor)
   }
 
   const mover = (dias: number) => {
@@ -366,9 +376,7 @@ export default function HojaPage() {
                     filtro === 'todo' && !busca && etiqueta !== seccionActual
                       ? ((seccionActual = etiqueta), etiqueta)
                       : null
-                  const etiquetaOrigen =
-                    x.origen_inicial === 'manual' ? 'Fijado' :
-                    x.origen_inicial === 'nuevo' ? 'Nuevo' : 'Heredado'
+                  const etiquetaOrigen = x.origen_inicial === 'manual' ? 'Fijado' : 'Par'
                   return (
                     <Fragment key={x.linea_id}>
                       {cab && (
@@ -386,10 +394,8 @@ export default function HojaPage() {
                               data-o={x.origen_inicial}
                               title={
                                 x.origen_inicial === 'manual'
-                                  ? `Fijado a mano en ${f(x.par)}`
-                                  : x.origen_inicial === 'nuevo'
-                                  ? 'Sin jornada anterior: usa el par'
-                                  : 'Heredado del cierre de ayer'
+                                  ? `Fijado a mano${x.par !== x.inicial ? ` (el par es ${f(x.par)})` : ''}`
+                                  : 'Usa el par configurado en Ajustes'
                               }
                             >
                               {etiquetaOrigen}
@@ -400,15 +406,12 @@ export default function HojaPage() {
                               className="stkh-reset"
                               disabled={tocando === x.linea_id}
                               onClick={() =>
-                                tocarInicial(
-                                  x.linea_id,
-                                  x.origen_inicial === 'manual' ? 'heredar_inicial' : 'restablecer_inicial'
-                                )
+                                x.origen_inicial === 'manual'
+                                  ? tocarInicial(x.linea_id, 'quitar_override')
+                                  : fijarInicial(x.linea_id, n(x.par) || 0)
                               }
                             >
-                              {x.origen_inicial === 'manual'
-                                ? 'Volver a heredar'
-                                : `Restablecer a par (${f(x.par)})`}
+                              {x.origen_inicial === 'manual' ? 'Quitar (usar par)' : 'Fijar inicial…'}
                             </button>
                           )}
                         </td>
@@ -435,8 +438,7 @@ export default function HojaPage() {
               </tbody>
             </table>
             <p className="stkh-pie">
-              Inicial = lo que quedó ayer más lo que subió el economato («Heredado»), salvo que lo hayas
-              fijado tú a mano («Fijado») o sea la primera jornada del producto («Nuevo»).
+              Inicial = el par configurado en Ajustes, salvo que lo fijes tú a mano para hoy.
               Consumo = inicial + entradas − final.
             </p>
           </>
