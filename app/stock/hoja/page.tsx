@@ -16,6 +16,7 @@ type Fila = {
   consumo: string
   nota: string | null
   contado: boolean
+  origen_inicial: 'manual' | 'heredado' | 'nuevo'
 }
 type Datos = {
   jornada: { id: number; fecha: string; estado: string; perfil: string | null } | null
@@ -91,7 +92,17 @@ const CSS = `
   letter-spacing:.09em;text-transform:uppercase;text-align:left!important;padding:8px 10px;
   position:sticky;left:0;z-index:12}
 .stkh-cons{font-weight:700;color:var(--txt)}
-.stkh-ini sup{color:var(--warn);font-size:10px;margin-left:2px}
+.stkh-ini{position:relative}
+.stkh-ini-v{display:flex;align-items:center;justify-content:flex-end;gap:5px}
+.stkh-badge{font-size:9px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;
+  padding:2px 5px;border-radius:5px;white-space:nowrap}
+.stkh-badge[data-o="heredado"]{background:#1d2a3a;color:#7fa8d6}
+.stkh-badge[data-o="manual"]{background:#3a2a1d;color:var(--warn)}
+.stkh-badge[data-o="nuevo"]{background:#1d3a2c;color:var(--ok)}
+.stkh-reset{border:1px solid var(--line);border-radius:6px;background:none;color:var(--dim);
+  font-size:9.5px;padding:2px 6px;cursor:pointer;font-family:inherit;white-space:nowrap;
+  margin-top:3px}
+.stkh-reset:disabled{opacity:.4;cursor:default}
 .stkh-nota{padding:5px 6px!important;min-width:210px}
 .stkh-nota textarea{width:100%;min-width:200px;min-height:34px;border-radius:8px;
   border:1px solid transparent;background:transparent;color:var(--warn);font-size:12px;
@@ -168,6 +179,28 @@ export default function HojaPage() {
     })
     setGuardado(true)
     setTimeout(() => setGuardado(false), 1600)
+  }
+
+  const [tocando, setTocando] = useState<number | null>(null)
+  const tocarInicial = async (lineaId: number, accion: 'restablecer_inicial' | 'heredar_inicial') => {
+    setTocando(lineaId)
+    try {
+      const quien = localStorage.getItem('stk_quien')
+      const r = await fetch('/api/stock/resumen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lineaId, accion, quien }),
+      })
+      if (!r.ok) {
+        const j = await r.json().catch(() => null)
+        throw new Error(j?.error || 'no se pudo actualizar')
+      }
+      await cargar(fecha)
+    } catch (e: any) {
+      alert('No se pudo actualizar el inicial: ' + e.message)
+    } finally {
+      setTocando(null)
+    }
   }
 
   const mover = (dias: number) => {
@@ -333,7 +366,9 @@ export default function HojaPage() {
                     filtro === 'todo' && !busca && etiqueta !== seccionActual
                       ? ((seccionActual = etiqueta), etiqueta)
                       : null
-                  const arrastre = Math.abs((n(x.inicial) || 0) - (n(x.par) || 0)) > 0.001
+                  const etiquetaOrigen =
+                    x.origen_inicial === 'manual' ? 'Fijado' :
+                    x.origen_inicial === 'nuevo' ? 'Nuevo' : 'Heredado'
                   return (
                     <Fragment key={x.linea_id}>
                       {cab && (
@@ -344,8 +379,38 @@ export default function HojaPage() {
                       <tr data-sin={x.contado ? '0' : '1'}>
                         <td>{x.producto}</td>
                         <td className="stkh-ini">
-                          {f(x.inicial)}
-                          {arrastre && <sup title={`El par es ${f(x.par)}`}>&#9650;</sup>}
+                          <div className="stkh-ini-v">
+                            {f(x.inicial)}
+                            <span
+                              className="stkh-badge"
+                              data-o={x.origen_inicial}
+                              title={
+                                x.origen_inicial === 'manual'
+                                  ? `Fijado a mano en ${f(x.par)}`
+                                  : x.origen_inicial === 'nuevo'
+                                  ? 'Sin jornada anterior: usa el par'
+                                  : 'Heredado del cierre de ayer'
+                              }
+                            >
+                              {etiquetaOrigen}
+                            </span>
+                          </div>
+                          {esHoy && (
+                            <button
+                              className="stkh-reset"
+                              disabled={tocando === x.linea_id}
+                              onClick={() =>
+                                tocarInicial(
+                                  x.linea_id,
+                                  x.origen_inicial === 'manual' ? 'heredar_inicial' : 'restablecer_inicial'
+                                )
+                              }
+                            >
+                              {x.origen_inicial === 'manual'
+                                ? 'Volver a heredar'
+                                : `Restablecer a par (${f(x.par)})`}
+                            </button>
+                          )}
                         </td>
                         <td>{n(x.entradas) ? f(x.entradas) : '—'}</td>
                         <td>{x.contado ? f(x.final) : '—'}</td>
@@ -370,8 +435,9 @@ export default function HojaPage() {
               </tbody>
             </table>
             <p className="stkh-pie">
-              Inicial = lo que quedó ayer más lo que subió el economato; el triángulo marca las que no
-              coinciden con el par. Consumo = inicial + entradas − final.
+              Inicial = lo que quedó ayer más lo que subió el economato («Heredado»), salvo que lo hayas
+              fijado tú a mano («Fijado») o sea la primera jornada del producto («Nuevo»).
+              Consumo = inicial + entradas − final.
             </p>
           </>
         )}
