@@ -429,10 +429,9 @@ export default function AjustesPage() {
               if (
                 !confirm(
                   `¿Aplicar los valores de «${actual?.nombre}» a la jornada de hoy?\n\n` +
-                    'Actualiza el par de referencia y el pedido sugerido de hoy, y da de alta ' +
-                    'los productos nuevos con ese par como su primer stock inicial. En productos ' +
-                    'con historial, el stock inicial de hoy sigue siendo el cierre de ayer — si quieres ' +
-                    'forzarlo también, usa "Restablecer a par" en esa línea, en la Hoja.'
+                    'Actualiza el par de referencia de hoy (que es el stock inicial de cada línea, ' +
+                    'salvo que la hayas fijado a mano) y el pedido sugerido, y da de alta los ' +
+                    'productos nuevos.'
                 )
               )
                 return
