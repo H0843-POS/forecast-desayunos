@@ -28,9 +28,9 @@ type Producto = {
   nota: string | null
   movs: string
   ubicaciones: number[] | null
-  conteos: Record<string, string>
-  heredados: Record<string, string>
-  objetivos: Record<string, string>
+  conteos: Record<string, number>
+  heredados: Record<string, number>
+  objetivos: Record<string, number>
 }
 type Hoja = {
   jornada: { id: number; fecha: string; estado: string; perfil: string | null }
@@ -248,9 +248,9 @@ export default function ConteoPage() {
     guardar(lineaId, ubicacionId, valor)
   }
 
-  const paso = (lineaId: number, ubicacionId: number, delta: number, step: number, base?: string) => {
+  const paso = (lineaId: number, ubicacionId: number, delta: number, step: number, base?: number) => {
     const key = `${lineaId}:${ubicacionId}`
-    const actual = Number((valores[key] ?? base ?? '0').replace(',', '.')) || 0
+    const actual = Number(String(valores[key] ?? base ?? '0').replace(',', '.')) || 0
     cambiar(lineaId, ubicacionId, String(Math.max(0, Math.round((actual + delta * step) * 100) / 100)))
   }
 
@@ -550,7 +550,7 @@ export default function ConteoPage() {
                   <small style={{ color: 'var(--dim)' }}>heredado de otro día — toca para confirmar</small>
                 )}
                 {objetivo !== undefined && Number(objetivo) > 0 && (
-                  <small style={{ color: 'var(--dim)' }}>debería haber aquí: {objetivo.replace('.', ',')}</small>
+                  <small style={{ color: 'var(--dim)' }}>debería haber aquí: {String(objetivo).replace('.', ',')}</small>
                 )}
               </span>
               <span className="stkc-ctrl">
