@@ -127,6 +127,8 @@ const CSS = `
 .stkh-acc .pri{background:var(--acc);border-color:var(--acc);color:#08111c}
 .stkh-acc button:disabled{opacity:.4}
 
+.stkh-onscreen{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;width:100%}
+
 .stkh-print{display:none}
 @media print{
   .stkh-onscreen{display:none!important}
