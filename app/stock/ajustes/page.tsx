@@ -22,6 +22,8 @@ type Prod = {
   par: string
   propio: boolean
   zonas: number[]
+  objetivos: Record<string, string>
+  objetivos_propios: number[]
 }
 type Datos = {
   perfil_id: number
@@ -101,6 +103,14 @@ const CSS = `
   color:#5d6577;font-size:11.5px;cursor:pointer;font-family:inherit}
 .stka-zb[data-on="1"]{background:#1d3348;border-color:#37658f;color:#9ccbf5;
   font-weight:600}
+.stka-zw{display:flex;align-items:center;gap:5px;padding:3px 4px 3px 10px;border-radius:999px;
+  border:1px solid #37658f;background:#1d3348}
+.stka-zw button{padding:0;border:0;background:none;color:#9ccbf5;font-size:11.5px;font-weight:600;
+  cursor:pointer;font-family:inherit;white-space:nowrap}
+.stka-zw input{width:38px;height:24px;border-radius:7px;border:1px solid #37658f;background:#12151c;
+  color:var(--txt);text-align:center;font-size:11.5px;font-weight:650;font-family:inherit;
+  font-variant-numeric:tabular-nums}
+.stka-zw input[data-propio="0"]{color:var(--dim);font-style:italic}
 .stka-aviso{margin:12px 14px;background:#152219;border:1px solid #2a4a3c;border-radius:12px;
   padding:12px;font-size:12.5px;color:#a9d8c2;line-height:1.6}
 .stka-msg{padding:50px 24px;text-align:center;color:var(--dim);font-size:14px;line-height:1.6}
@@ -252,7 +262,9 @@ export default function AjustesPage() {
 
             <div className="stka-info">
               El <b>stock inicial</b> es lo que debe haber al empezar el día. El pedido siempre devuelve a
-              ese número.
+              ese número. El número dentro de cada pastilla azul es el <b>objetivo de esa ubicación en
+              concreto</b> (cuánto debería haber ahí exactamente) — es solo de referencia al contar, no
+              cambia el pedido ni el stock inicial.
               {actual?.padre && (
                 <>
                   {' '}
@@ -378,25 +390,83 @@ export default function AjustesPage() {
                     <div className="stka-z">
                       {(d?.ubicaciones || []).map((u) => {
                         const on = p.zonas.includes(u.id)
+                        if (!on) {
+                          return (
+                            <button
+                              key={u.id}
+                              className="stka-zb"
+                              data-on="0"
+                              onClick={() =>
+                                accion({
+                                  accion: 'zona',
+                                  productoId: p.id,
+                                  ubicacionId: u.id,
+                                  activa: true,
+                                })
+                              }
+                            >
+                              {u.nombre}
+                            </button>
+                          )
+                        }
+                        const propioObjetivo = p.objetivos_propios?.includes(u.id)
                         return (
-                          <button
-                            key={u.id}
-                            className="stka-zb"
-                            data-on={on ? '1' : '0'}
-                            onClick={() =>
-                              accion({
-                                accion: 'zona',
-                                productoId: p.id,
-                                ubicacionId: u.id,
-                                activa: !on,
-                              })
-                            }
-                          >
-                            {u.nombre}
-                          </button>
+                          <span className="stka-zw" key={u.id}>
+                            <button
+                              onClick={() =>
+                                accion({
+                                  accion: 'zona',
+                                  productoId: p.id,
+                                  ubicacionId: u.id,
+                                  activa: false,
+                                })
+                              }
+                              title="Quitar de esta zona"
+                            >
+                              {u.nombre}
+                            </button>
+                            <input
+                              data-propio={propioObjetivo ? '1' : '0'}
+                              inputMode="decimal"
+                              defaultValue={f(p.objetivos?.[String(u.id)] ?? 0)}
+                              aria-label={`Objetivo de ${p.nombre} en ${u.nombre}`}
+                              title={propioObjetivo ? 'Objetivo propio de este perfil' : 'Objetivo heredado (0 por defecto)'}
+                              onFocus={(e) => e.currentTarget.select()}
+                              onBlur={(e) => {
+                                const v = e.target.value.replace(',', '.')
+                                if (Number(v) === Number(p.objetivos?.[String(u.id)] ?? 0)) return
+                                accion({
+                                  accion: 'objetivo_ubicacion',
+                                  productoId: p.id,
+                                  ubicacionId: u.id,
+                                  unidades: v,
+                                })
+                              }}
+                            />
+                          </span>
                         )
                       })}
                     </div>
+                    {(() => {
+                      const sumaZonas = p.zonas.reduce(
+                        (a, uid) => a + (Number(p.objetivos?.[String(uid)]) || 0),
+                        0
+                      )
+                      if (sumaZonas === 0) return null
+                      const cuadra = Math.abs(sumaZonas - Number(p.par)) < 0.01
+                      return (
+                        <p
+                          style={{
+                            margin: '6px 0 0',
+                            fontSize: 11.5,
+                            color: cuadra ? 'var(--dim)' : 'var(--warn)',
+                          }}
+                        >
+                          Suma de zonas: {f(sumaZonas)} · Par: {f(p.par)}
+                          {!cuadra && ' — no cuadra'}
+                        </p>
+                      )
+                    })()}
                   </div>
                 </Fragment>
               )
