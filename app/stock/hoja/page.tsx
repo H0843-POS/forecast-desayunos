@@ -23,6 +23,14 @@ type Datos = {
   filas: Fila[]
 }
 
+type Ubicacion = { id: number; codigo: string; nombre: string; almacen: boolean }
+type ProductoConteo = {
+  linea_id: number
+  ubicaciones: number[]
+  conteos: Record<string, number>
+}
+type DatosConteo = { ubicaciones: Ubicacion[]; productos: ProductoConteo[] }
+
 const n = (v: any) => (v === null || v === undefined ? null : Number(v))
 const f = (v: any) => {
   const x = n(v)
@@ -126,28 +134,33 @@ const CSS = `
   text-decoration:none;font-family:inherit}
 .stkh-acc .pri{background:var(--acc);border-color:var(--acc);color:#08111c}
 .stkh-acc button:disabled{opacity:.4}
+.stkh-quien{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dim)}
+.stkh-quien input{height:32px;border-radius:8px;border:1px solid var(--line);background:var(--bg);
+  color:var(--txt);padding:0 9px;font-size:13px;font-family:inherit;width:130px}
 
 .stkh-onscreen{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;width:100%}
 
 .stkh-print{display:none}
 @media print{
+  .stkh{height:auto!important;overflow:visible!important}
   .stkh-onscreen{display:none!important}
   .stkh-print{display:block!important;background:#fff;color:#000;
     font-family:Arial,Helvetica,sans-serif}
   .stkh-print *{box-sizing:border-box}
   .stkh-print h1{font-size:14px;margin:0 0 1px;text-transform:uppercase}
   .stkh-print h2{font-size:12px;margin:0 0 8px;font-weight:600}
-  .stkh-p-meta{display:flex;justify-content:space-between;font-size:10.5px;margin-bottom:10px}
-  .stkh-print table{width:100%;border-collapse:collapse;font-size:9.5px;margin-bottom:4px}
-  .stkh-print th,.stkh-print td{border:1px solid #999;padding:3px 5px;text-align:right}
-  .stkh-print th:first-child,.stkh-print td:first-child{text-align:left}
-  .stkh-print thead th{background:#eaeaea;font-size:8.5px;text-transform:uppercase}
+  .stkh-p-meta{display:flex;justify-content:space-between;font-size:10.5px;margin-bottom:4px}
+  .stkh-p-zonas{font-size:9.5px;color:#444;margin:0 0 10px}
+  .stkh-print table{width:100%;border-collapse:collapse;font-size:8.5px;margin-bottom:4px}
+  .stkh-print th,.stkh-print td{border:1px solid #999;padding:2px 4px;text-align:right}
+  .stkh-print th:first-child,.stkh-print td:first-child{text-align:left;min-width:110px}
+  .stkh-print thead th{background:#eaeaea;font-size:7.5px;text-transform:uppercase}
   .stkh-p-sec td{background:#f2f2f2;font-weight:700;text-align:left!important}
   .stkh-p-extra{margin-top:16px}
   .stkh-p-extra table{width:60%}
   .stkh-p-firma{margin-top:28px;display:flex;justify-content:space-between;font-size:10.5px}
   .stkh-p-firma div{width:42%;border-top:1px solid #000;padding-top:4px}
-  @page{margin:12mm 9mm}
+  @page{margin:10mm 8mm;size:landscape}
 }
 `
 
@@ -191,8 +204,26 @@ export default function HojaPage() {
     }
   }
 
+  const [dConteo, setDConteo] = useState<DatosConteo | null>(null)
+
+  const cargarConteo = async (fch: string | null) => {
+    if (!fch) return
+    try {
+      const url = fch === hoyOperativo() ? '/api/stock/hoja' : `/api/stock/hoja?fecha=${fch}`
+      const r = await fetch(url)
+      const j = await r.json()
+      if (r.ok) setDConteo(j)
+    } catch {
+      // el desglose por ubicacion es solo para la impresion: si falla, se
+      // imprime sin esas columnas en vez de romper la pantalla principal
+    }
+  }
+
   useEffect(() => {
-    if (fecha) cargar(fecha)
+    if (fecha) {
+      cargar(fecha)
+      cargarConteo(fecha)
+    }
   }, [fecha])
 
   const guardarNota = async (lineaId: number, texto: string) => {
@@ -238,6 +269,11 @@ export default function HojaPage() {
     tocarInicial(lineaId, 'restablecer_inicial', valor)
   }
 
+  const cambiarQuien = (v: string) => {
+    setQuien(v)
+    localStorage.setItem('stk_quien', v)
+  }
+
   const mover = (dias: number) => {
     if (!fecha) return
     const x = new Date(fecha + 'T12:00:00')
@@ -277,6 +313,22 @@ export default function HojaPage() {
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }))
     a.download = `stock_${fecha || ''}.csv`
     a.click()
+  }
+
+  const ubicacionesConteo = useMemo(
+    () => (dConteo?.ubicaciones || []).filter((u) => !u.almacen),
+    [dConteo]
+  )
+  const conteoPorLinea = useMemo(() => {
+    const m = new Map<number, ProductoConteo>()
+    dConteo?.productos.forEach((p) => m.set(p.linea_id, p))
+    return m
+  }, [dConteo])
+  const celdaUbicacion = (lineaId: number, ubicId: number) => {
+    const pc = conteoPorLinea.get(lineaId)
+    if (!pc || !pc.ubicaciones.includes(ubicId)) return ''
+    const v = pc.conteos[String(ubicId)]
+    return v === undefined ? '—' : f(v)
   }
 
   const sinContar = (d?.filas || []).filter((x) => !x.contado).length
@@ -491,6 +543,14 @@ export default function HojaPage() {
           <button onClick={descargarCsv} disabled={!d?.jornada}>
             Descargar CSV
           </button>
+          <label className="stkh-quien">
+            Control:
+            <input
+              value={quien}
+              onChange={(e) => cambiarQuien(e.target.value)}
+              placeholder="Iniciales…"
+            />
+          </label>
           <button onClick={() => window.print()} disabled={!d?.jornada}>
             Imprimir
           </button>
@@ -505,12 +565,20 @@ export default function HojaPage() {
           <span>Fecha: {fecha}</span>
           <span>Iniciales control: {quien || '__________'}</span>
         </div>
+        {ubicacionesConteo.length > 0 && (
+          <p className="stkh-p-zonas">
+            Zonas de conteo: {ubicacionesConteo.map((u) => u.nombre).join(' · ')}
+          </p>
+        )}
         <table>
           <thead>
             <tr>
               <th>Producto</th>
               <th>Fijo</th>
               <th>Inicial</th>
+              {ubicacionesConteo.map((u) => (
+                <th key={u.id}>{u.nombre}</th>
+              ))}
               <th>Entradas</th>
               <th>Final</th>
               <th>Consumo</th>
@@ -529,13 +597,16 @@ export default function HojaPage() {
                   <Fragment key={x.linea_id}>
                     {cab && (
                       <tr className="stkh-p-sec">
-                        <td colSpan={9}>{cab}</td>
+                        <td colSpan={9 + ubicacionesConteo.length}>{cab}</td>
                       </tr>
                     )}
                     <tr>
                       <td>{x.producto}</td>
                       <td>{f(x.par)}</td>
                       <td>{f(x.inicial)}</td>
+                      {ubicacionesConteo.map((u) => (
+                        <td key={u.id}>{celdaUbicacion(x.linea_id, u.id)}</td>
+                      ))}
                       <td>{n(x.entradas) ? f(x.entradas) : '—'}</td>
                       <td>{x.contado ? f(x.final) : ''}</td>
                       <td>{x.contado ? f(x.consumo) : ''}</td>
