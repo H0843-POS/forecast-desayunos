@@ -163,9 +163,7 @@ const CSS = `
   .stkh-print th:first-child,.stkh-print td:first-child{text-align:left}
   .stkh-print thead th{border-bottom:1.5px solid #000;font-size:9.5px;
     text-transform:uppercase;letter-spacing:.04em;color:#333;padding-bottom:6px}
-  .stkh-p-tabla-zona td{font-size:13px;padding:7px 6px}
-  .stkh-p-tabla-zona td:nth-child(2){font-weight:700;font-size:15px;min-width:60px}
-  .stkh-p-tabla-zona tbody tr:nth-child(even){background:#fafafa}
+  .stkh-p-tabla-resumen tbody tr:nth-child(even){background:#fafafa}
   .stkh-p-tabla-resumen{font-size:9px}
   .stkh-p-sec td{background:#f0f0f0!important;font-weight:700;text-align:left!important;
     text-transform:uppercase;font-size:9.5px;letter-spacing:.03em;border-bottom:1px solid #ccc}
@@ -367,6 +365,13 @@ export default function HojaPage() {
       }
     })
     return alguno ? f(suma) : '—'
+  }
+
+  const consumoZona = (x: Fila, ids: number[]) => {
+    const finalStr = celdaSumaZonas(x.linea_id, ids)
+    if (finalStr === '' || finalStr === '—') return finalStr
+    const finalNum = Number(finalStr.replace(',', '.'))
+    return f((n(x.inicial) || 0) + (n(x.entradas) || 0) - finalNum)
   }
 
   const sinContar = (d?.filas || []).filter((x) => !x.contado).length
@@ -619,12 +624,18 @@ export default function HojaPage() {
                   <div>Control: <b>{quien || '__________'}</b></div>
                 </div>
               </div>
-              <table className="stkh-p-tabla-zona">
+              <table className="stkh-p-tabla-resumen">
                 <thead>
                   <tr>
                     <th>Producto</th>
-                    <th>Par</th>
-                    <th>Conteo</th>
+                    <th>Fijo</th>
+                    <th>Inicial</th>
+                    <th>Entradas</th>
+                    <th>Final</th>
+                    <th>Consumo</th>
+                    <th>Ventas</th>
+                    <th>Descuadre</th>
+                    <th style={{ textAlign: 'left' }}>Comentarios</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -635,13 +646,19 @@ export default function HojaPage() {
                       <Fragment key={x.linea_id}>
                         {cab && (
                           <tr className="stkh-p-sec">
-                            <td colSpan={3}>{cab}</td>
+                            <td colSpan={9}>{cab}</td>
                           </tr>
                         )}
                         <tr>
                           <td>{x.producto}</td>
                           <td>{f(x.par)}</td>
+                          <td>{f(x.inicial)}</td>
+                          <td>{n(x.entradas) ? f(x.entradas) : '—'}</td>
                           <td>{celdaSumaZonas(x.linea_id, g.ids)}</td>
+                          <td>{consumoZona(x, g.ids)}</td>
+                          <td></td>
+                          <td></td>
+                          <td style={{ textAlign: 'left' }}>{x.nota || ''}</td>
                         </tr>
                       </Fragment>
                     )
@@ -744,3 +761,4 @@ export default function HojaPage() {
   )
 }
 
+            
