@@ -328,20 +328,45 @@ export default function HojaPage() {
     a.click()
   }
 
-  const ubicacionesConteo = useMemo(
-    () => (dConteo?.ubicaciones || []).filter((u) => !u.almacen),
-    [dConteo]
-  )
   const conteoPorLinea = useMemo(() => {
     const m = new Map<number, ProductoConteo>()
     dConteo?.productos.forEach((p) => m.set(p.linea_id, p))
     return m
   }, [dConteo])
-  const celdaUbicacion = (lineaId: number, ubicId: number) => {
+
+  const idPorCodigo = useMemo(() => {
+    const m = new Map<string, number>()
+    ;(dConteo?.ubicaciones || []).forEach((u) => m.set(u.codigo, u.id))
+    return m
+  }, [dConteo])
+
+  const gruposImpresion = useMemo(() => {
+    const def: { titulo: string; codigos: string[]; categorias?: string[] }[] = [
+      { titulo: 'Bar interior + Office + Terraza', codigos: ['bar_interior', 'office_cocina', 'bar_terraza'] },
+      { titulo: 'Rack eventos', codigos: ['rack'] },
+      { titulo: 'Cava — vinos tintos', codigos: ['cava'], categorias: ['tintos'] },
+      { titulo: 'Cava — blancos, rosados y cavas', codigos: ['cava'], categorias: ['blancos', 'rosados_cavas'] },
+    ]
+    return def
+      .map((g) => ({ ...g, ids: g.codigos.map((c) => idPorCodigo.get(c)).filter((x): x is number => !!x) }))
+      .filter((g) => g.ids.length > 0)
+  }, [idPorCodigo])
+
+  const celdaSumaZonas = (lineaId: number, ids: number[]) => {
     const pc = conteoPorLinea.get(lineaId)
-    if (!pc || !pc.ubicaciones.includes(ubicId)) return ''
-    const v = pc.conteos[String(ubicId)]
-    return v === undefined ? '—' : f(v)
+    if (!pc) return ''
+    const aplica = ids.filter((id) => pc.ubicaciones.includes(id))
+    if (!aplica.length) return ''
+    let suma = 0
+    let alguno = false
+    aplica.forEach((id) => {
+      const v = pc.conteos[String(id)]
+      if (v !== undefined) {
+        suma += v
+        alguno = true
+      }
+    })
+    return alguno ? f(suma) : '—'
   }
 
   const sinContar = (d?.filas || []).filter((x) => !x.contado).length
@@ -572,18 +597,22 @@ export default function HojaPage() {
       </div>
 
       <div className="stkh-print">
-        {ubicacionesConteo.map((u) => {
-          const productosZona = (d?.filas || []).filter((x) =>
-            conteoPorLinea.get(x.linea_id)?.ubicaciones.includes(u.id)
-          )
-          if (!productosZona.length) return null
+        {gruposImpresion.map((g) => {
+          const productosGrupo = (d?.filas || []).filter((x) => {
+            const pc = conteoPorLinea.get(x.linea_id)
+            if (!pc) return false
+            if (!g.ids.some((id) => pc.ubicaciones.includes(id))) return false
+            if (g.categorias && !g.categorias.includes(x.cat_codigo)) return false
+            return true
+          })
+          if (!productosGrupo.length) return null
           let sec: string | null | undefined = undefined
           return (
-            <div className="stkh-p-pagina" key={u.id}>
+            <div className="stkh-p-pagina" key={g.titulo}>
               <div className="stkh-p-cab">
                 <div>
                   <h1>Novotel &amp; Ibis Madrid City Las Ventas</h1>
-                  <h2>{u.nombre}</h2>
+                  <h2>{g.titulo}</h2>
                 </div>
                 <div className="stkh-p-cab-r">
                   <div>Fecha: <b>{fecha}</b></div>
@@ -599,7 +628,7 @@ export default function HojaPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {productosZona.map((x) => {
+                  {productosGrupo.map((x) => {
                     const etiqueta = [x.categoria, x.seccion].filter(Boolean).join(' · ')
                     const cab = etiqueta !== sec ? ((sec = etiqueta), etiqueta) : null
                     return (
@@ -612,7 +641,7 @@ export default function HojaPage() {
                         <tr>
                           <td>{x.producto}</td>
                           <td>{f(x.par)}</td>
-                          <td>{celdaUbicacion(x.linea_id, u.id)}</td>
+                          <td>{celdaSumaZonas(x.linea_id, g.ids)}</td>
                         </tr>
                       </Fragment>
                     )
@@ -714,3 +743,4 @@ export default function HojaPage() {
     </div>
   )
 }
+
