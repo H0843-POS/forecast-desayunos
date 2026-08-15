@@ -145,22 +145,35 @@ const CSS = `
   .stkh{height:auto!important;overflow:visible!important}
   .stkh-onscreen{display:none!important}
   .stkh-print{display:block!important;background:#fff;color:#000;
-    font-family:Arial,Helvetica,sans-serif}
+    font-family:Georgia,'Times New Roman',serif}
   .stkh-print *{box-sizing:border-box}
-  .stkh-print h1{font-size:14px;margin:0 0 1px;text-transform:uppercase}
-  .stkh-print h2{font-size:12px;margin:0 0 8px;font-weight:600}
-  .stkh-p-meta{display:flex;justify-content:space-between;font-size:10.5px;margin-bottom:4px}
-  .stkh-p-zonas{font-size:9.5px;color:#444;margin:0 0 10px}
-  .stkh-print table{width:100%;border-collapse:collapse;font-size:8.5px;margin-bottom:4px}
-  .stkh-print th,.stkh-print td{border:1px solid #999;padding:2px 4px;text-align:right}
-  .stkh-print th:first-child,.stkh-print td:first-child{text-align:left;min-width:110px}
-  .stkh-print thead th{background:#eaeaea;font-size:7.5px;text-transform:uppercase}
-  .stkh-p-sec td{background:#f2f2f2;font-weight:700;text-align:left!important}
-  .stkh-p-extra{margin-top:16px}
-  .stkh-p-extra table{width:60%}
-  .stkh-p-firma{margin-top:28px;display:flex;justify-content:space-between;font-size:10.5px}
-  .stkh-p-firma div{width:42%;border-top:1px solid #000;padding-top:4px}
-  @page{margin:10mm 8mm;size:landscape}
+  .stkh-p-pagina{page-break-before:always}
+  .stkh-p-pagina:first-child{page-break-before:auto}
+  .stkh-p-cab{border-bottom:2.5px solid #000;padding-bottom:8px;margin-bottom:14px;
+    display:flex;justify-content:space-between;align-items:flex-end}
+  .stkh-p-cab h1{font-size:12px;margin:0 0 3px;font-weight:400;letter-spacing:.03em;
+    text-transform:uppercase;color:#555;font-family:Arial,sans-serif}
+  .stkh-p-cab h2{font-size:22px;margin:0;font-weight:700}
+  .stkh-p-cab-r{text-align:right;font-size:11px;font-family:Arial,sans-serif;color:#333;
+    line-height:1.7}
+  .stkh-p-cab-r b{color:#000}
+  .stkh-print table{width:100%;border-collapse:collapse;margin-bottom:6px;
+    font-family:Arial,sans-serif}
+  .stkh-print th,.stkh-print td{border-bottom:1px solid #ccc;padding:5px 6px;text-align:right}
+  .stkh-print th:first-child,.stkh-print td:first-child{text-align:left}
+  .stkh-print thead th{border-bottom:1.5px solid #000;font-size:9.5px;
+    text-transform:uppercase;letter-spacing:.04em;color:#333;padding-bottom:6px}
+  .stkh-p-tabla-zona td{font-size:13px;padding:7px 6px}
+  .stkh-p-tabla-zona td:nth-child(2){font-weight:700;font-size:15px;min-width:60px}
+  .stkh-p-tabla-zona tbody tr:nth-child(even){background:#fafafa}
+  .stkh-p-tabla-resumen{font-size:9px}
+  .stkh-p-sec td{background:#f0f0f0!important;font-weight:700;text-align:left!important;
+    text-transform:uppercase;font-size:9.5px;letter-spacing:.03em;border-bottom:1px solid #ccc}
+  .stkh-p-extra table{width:55%}
+  .stkh-p-firma{margin-top:34px;display:flex;justify-content:space-between;
+    font-family:Arial,sans-serif;font-size:10.5px}
+  .stkh-p-firma div{width:40%;border-top:1px solid #000;padding-top:5px}
+  @page{margin:12mm 10mm}
 }
 `
 
@@ -559,91 +572,143 @@ export default function HojaPage() {
       </div>
 
       <div className="stkh-print">
-        <h1>Novotel &amp; Ibis Madrid City Las Ventas</h1>
-        <h2>Control de stocks — restauración{d?.jornada?.perfil ? ` (par ${d.jornada.perfil})` : ''}</h2>
-        <div className="stkh-p-meta">
-          <span>Fecha: {fecha}</span>
-          <span>Iniciales control: {quien || '__________'}</span>
-        </div>
-        {ubicacionesConteo.length > 0 && (
-          <p className="stkh-p-zonas">
-            Zonas de conteo: {ubicacionesConteo.map((u) => u.nombre).join(' · ')}
-          </p>
-        )}
-        <table>
-          <thead>
-            <tr>
-              <th>Producto</th>
-              <th>Fijo</th>
-              <th>Inicial</th>
-              {ubicacionesConteo.map((u) => (
-                <th key={u.id}>{u.nombre}</th>
-              ))}
-              <th>Entradas</th>
-              <th>Final</th>
-              <th>Consumo</th>
-              <th>Ventas</th>
-              <th>Descuadre</th>
-              <th style={{ textAlign: 'left' }}>Comentarios</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(() => {
-              let sec: string | null | undefined = undefined
-              return (d?.filas || []).map((x) => {
-                const etiqueta = [x.categoria, x.seccion].filter(Boolean).join(' · ')
-                const cab = etiqueta !== sec ? ((sec = etiqueta), etiqueta) : null
-                return (
-                  <Fragment key={x.linea_id}>
-                    {cab && (
-                      <tr className="stkh-p-sec">
-                        <td colSpan={9 + ubicacionesConteo.length}>{cab}</td>
-                      </tr>
-                    )}
-                    <tr>
-                      <td>{x.producto}</td>
-                      <td>{f(x.par)}</td>
-                      <td>{f(x.inicial)}</td>
-                      {ubicacionesConteo.map((u) => (
-                        <td key={u.id}>{celdaUbicacion(x.linea_id, u.id)}</td>
-                      ))}
-                      <td>{n(x.entradas) ? f(x.entradas) : '—'}</td>
-                      <td>{x.contado ? f(x.final) : ''}</td>
-                      <td>{x.contado ? f(x.consumo) : ''}</td>
-                      <td></td>
-                      <td></td>
-                      <td style={{ textAlign: 'left' }}>{x.nota || ''}</td>
-                    </tr>
-                  </Fragment>
-                )
-              })
-            })()}
-          </tbody>
-        </table>
+        {ubicacionesConteo.map((u) => {
+          const productosZona = (d?.filas || []).filter((x) =>
+            conteoPorLinea.get(x.linea_id)?.ubicaciones.includes(u.id)
+          )
+          if (!productosZona.length) return null
+          let sec: string | null | undefined = undefined
+          return (
+            <div className="stkh-p-pagina" key={u.id}>
+              <div className="stkh-p-cab">
+                <div>
+                  <h1>Novotel &amp; Ibis Madrid City Las Ventas</h1>
+                  <h2>{u.nombre}</h2>
+                </div>
+                <div className="stkh-p-cab-r">
+                  <div>Fecha: <b>{fecha}</b></div>
+                  <div>Control: <b>{quien || '__________'}</b></div>
+                </div>
+              </div>
+              <table className="stkh-p-tabla-zona">
+                <thead>
+                  <tr>
+                    <th>Producto</th>
+                    <th>Par</th>
+                    <th>Conteo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {productosZona.map((x) => {
+                    const etiqueta = [x.categoria, x.seccion].filter(Boolean).join(' · ')
+                    const cab = etiqueta !== sec ? ((sec = etiqueta), etiqueta) : null
+                    return (
+                      <Fragment key={x.linea_id}>
+                        {cab && (
+                          <tr className="stkh-p-sec">
+                            <td colSpan={3}>{cab}</td>
+                          </tr>
+                        )}
+                        <tr>
+                          <td>{x.producto}</td>
+                          <td>{f(x.par)}</td>
+                          <td>{celdaUbicacion(x.linea_id, u.id)}</td>
+                        </tr>
+                      </Fragment>
+                    )
+                  })}
+                </tbody>
+              </table>
+              <div className="stkh-p-firma">
+                <div>Control</div>
+                <div>Firma</div>
+              </div>
+            </div>
+          )
+        })}
 
-        <div className="stkh-p-extra">
-          <h2>Reposición extra del día</h2>
-          <table>
+        <div className="stkh-p-pagina">
+          <div className="stkh-p-cab">
+            <div>
+              <h1>Novotel &amp; Ibis Madrid City Las Ventas</h1>
+              <h2>Resumen y cotejo TPV{d?.jornada?.perfil ? ` · par ${d.jornada.perfil}` : ''}</h2>
+            </div>
+            <div className="stkh-p-cab-r">
+              <div>Fecha: <b>{fecha}</b></div>
+              <div>Control: <b>{quien || '__________'}</b></div>
+            </div>
+          </div>
+          <table className="stkh-p-tabla-resumen">
             <thead>
               <tr>
                 <th>Producto</th>
-                <th>Cantidad</th>
+                <th>Fijo</th>
+                <th>Inicial</th>
+                <th>Entradas</th>
+                <th>Final</th>
+                <th>Consumo</th>
+                <th>Ventas</th>
+                <th>Descuadre</th>
+                <th style={{ textAlign: 'left' }}>Comentarios</th>
               </tr>
             </thead>
             <tbody>
-              {Array.from({ length: 6 }).map((_, i) => (
-                <tr key={i}>
-                  <td>&nbsp;</td>
-                  <td></td>
-                </tr>
-              ))}
+              {(() => {
+                let sec: string | null | undefined = undefined
+                return (d?.filas || []).map((x) => {
+                  const etiqueta = [x.categoria, x.seccion].filter(Boolean).join(' · ')
+                  const cab = etiqueta !== sec ? ((sec = etiqueta), etiqueta) : null
+                  return (
+                    <Fragment key={x.linea_id}>
+                      {cab && (
+                        <tr className="stkh-p-sec">
+                          <td colSpan={9}>{cab}</td>
+                        </tr>
+                      )}
+                      <tr>
+                        <td>{x.producto}</td>
+                        <td>{f(x.par)}</td>
+                        <td>{f(x.inicial)}</td>
+                        <td>{n(x.entradas) ? f(x.entradas) : '—'}</td>
+                        <td>{x.contado ? f(x.final) : ''}</td>
+                        <td>{x.contado ? f(x.consumo) : ''}</td>
+                        <td></td>
+                        <td></td>
+                        <td style={{ textAlign: 'left' }}>{x.nota || ''}</td>
+                      </tr>
+                    </Fragment>
+                  )
+                })
+              })()}
             </tbody>
           </table>
-        </div>
 
-        <div className="stkh-p-firma">
-          <div>Iniciales control</div>
-          <div>Firma</div>
+          <div className="stkh-p-extra">
+            <h2 style={{ fontSize: 12, fontFamily: 'Arial,sans-serif', margin: '14px 0 6px' }}>
+              Reposición extra del día
+            </h2>
+            <table>
+              <thead>
+                <tr>
+                  <th>Producto</th>
+                  <th>Cantidad</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <tr key={i}>
+                    <td>&nbsp;</td>
+                    <td></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="stkh-p-firma">
+            <div>Control</div>
+            <div>Firma</div>
+          </div>
         </div>
       </div>
     </div>
