@@ -17,6 +17,7 @@ type Fila = {
   nota: string | null
   contado: boolean
   origen_inicial: 'manual' | 'par'
+  final_heredado: boolean
 }
 type Datos = {
   jornada: { id: number; fecha: string; estado: string; perfil: string | null } | null
@@ -28,6 +29,8 @@ type ProductoConteo = {
   linea_id: number
   ubicaciones: number[]
   conteos: Record<string, number>
+  heredados: Record<string, number>
+  objetivos: Record<string, number>
 }
 type DatosConteo = { ubicaciones: Ubicacion[]; productos: ProductoConteo[] }
 
@@ -100,6 +103,7 @@ const CSS = `
   letter-spacing:.09em;text-transform:uppercase;text-align:left!important;padding:8px 10px;
   position:sticky;left:0;z-index:12}
 .stkh-cons{font-weight:700;color:var(--txt)}
+.stkh-hered{color:#6b7280!important;font-style:italic}
 .stkh-ini{position:relative}
 .stkh-ini-v{display:flex;align-items:center;justify-content:flex-end;gap:5px}
 .stkh-badge{font-size:9px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;
@@ -164,6 +168,7 @@ const CSS = `
   .stkh-print thead th{border-bottom:1.5px solid #000;font-size:9.5px;
     text-transform:uppercase;letter-spacing:.04em;color:#333;padding-bottom:6px}
   .stkh-p-tabla-resumen tbody tr:nth-child(even){background:#fafafa}
+  .stkh-p-hered{color:#999!important;font-style:italic}
   .stkh-p-tabla-resumen{font-size:9px}
   .stkh-p-sec td{background:#f0f0f0!important;font-weight:700;text-align:left!important;
     text-transform:uppercase;font-size:9.5px;letter-spacing:.03em;border-bottom:1px solid #ccc}
@@ -350,16 +355,38 @@ export default function HojaPage() {
       .filter((g) => g.ids.length > 0)
   }, [idPorCodigo])
 
-  const celdaSumaZonas = (lineaId: number, ids: number[]) => {
+  const sumaZonas = (lineaId: number, ids: number[]) => {
     const pc = conteoPorLinea.get(lineaId)
-    if (!pc) return ''
+    if (!pc) return { texto: '', heredado: false }
     const aplica = ids.filter((id) => pc.ubicaciones.includes(id))
-    if (!aplica.length) return ''
+    if (!aplica.length) return { texto: '', heredado: false }
     let suma = 0
     let alguno = false
+    let heredado = false
     aplica.forEach((id) => {
       const v = pc.conteos[String(id)]
+      const h = pc.heredados?.[String(id)]
       if (v !== undefined) {
+        suma += v
+        alguno = true
+      } else if (h !== undefined) {
+        suma += h
+        alguno = true
+        heredado = true
+      }
+    })
+    return { texto: alguno ? f(suma) : '—', heredado }
+  }
+  const celdaSumaZonas = (lineaId: number, ids: number[]) => sumaZonas(lineaId, ids).texto
+
+  const sumaObjetivo = (lineaId: number, ids: number[]) => {
+    const pc = conteoPorLinea.get(lineaId)
+    if (!pc) return ''
+    let suma = 0
+    let alguno = false
+    ids.forEach((id) => {
+      const v = pc.objetivos?.[String(id)]
+      if (v !== undefined && v > 0) {
         suma += v
         alguno = true
       }
@@ -537,8 +564,12 @@ export default function HojaPage() {
                           )}
                         </td>
                         <td>{n(x.entradas) ? f(x.entradas) : '—'}</td>
-                        <td>{x.contado ? f(x.final) : '—'}</td>
-                        <td className={x.contado ? 'stkh-cons' : ''}>{x.contado ? f(x.consumo) : '—'}</td>
+                        <td className={x.final_heredado ? 'stkh-hered' : ''} title={x.final_heredado ? 'Sin recuento hoy: usa el último conteo real' : undefined}>
+                          {x.contado ? f(x.final) : '—'}
+                        </td>
+                        <td className={x.contado ? (x.final_heredado ? 'stkh-cons stkh-hered' : 'stkh-cons') : ''}>
+                          {x.contado ? f(x.consumo) : '—'}
+                        </td>
                         <td className="stkh-nota">
                           <textarea
                             rows={1}
@@ -560,7 +591,8 @@ export default function HojaPage() {
             </table>
             <p className="stkh-pie">
               Inicial = el par configurado en Ajustes, salvo que lo fijes tú a mano para hoy.
-              Consumo = inicial + entradas − final.
+              Consumo = inicial + entradas − final. En gris: eventos y destilados de barra sin
+              recuento hoy, usando el último conteo real.
             </p>
           </>
         )}
@@ -629,6 +661,7 @@ export default function HojaPage() {
                   <tr>
                     <th>Producto</th>
                     <th>Fijo</th>
+                    <th>Objetivo aquí</th>
                     <th>Inicial</th>
                     <th>Entradas</th>
                     <th>Final</th>
@@ -646,16 +679,21 @@ export default function HojaPage() {
                       <Fragment key={x.linea_id}>
                         {cab && (
                           <tr className="stkh-p-sec">
-                            <td colSpan={9}>{cab}</td>
+                            <td colSpan={10}>{cab}</td>
                           </tr>
                         )}
                         <tr>
                           <td>{x.producto}</td>
                           <td>{f(x.par)}</td>
+                          <td>{sumaObjetivo(x.linea_id, g.ids)}</td>
                           <td>{f(x.inicial)}</td>
                           <td>{n(x.entradas) ? f(x.entradas) : '—'}</td>
-                          <td>{celdaSumaZonas(x.linea_id, g.ids)}</td>
-                          <td>{consumoZona(x, g.ids)}</td>
+                          <td className={sumaZonas(x.linea_id, g.ids).heredado ? 'stkh-p-hered' : ''}>
+                            {celdaSumaZonas(x.linea_id, g.ids)}
+                          </td>
+                          <td className={sumaZonas(x.linea_id, g.ids).heredado ? 'stkh-p-hered' : ''}>
+                            {consumoZona(x, g.ids)}
+                          </td>
                           <td></td>
                           <td></td>
                           <td style={{ textAlign: 'left' }}>{x.nota || ''}</td>
@@ -716,8 +754,8 @@ export default function HojaPage() {
                         <td>{f(x.par)}</td>
                         <td>{f(x.inicial)}</td>
                         <td>{n(x.entradas) ? f(x.entradas) : '—'}</td>
-                        <td>{x.contado ? f(x.final) : ''}</td>
-                        <td>{x.contado ? f(x.consumo) : ''}</td>
+                        <td className={x.final_heredado ? 'stkh-p-hered' : ''}>{x.contado ? f(x.final) : ''}</td>
+                        <td className={x.final_heredado ? 'stkh-p-hered' : ''}>{x.contado ? f(x.consumo) : ''}</td>
                         <td></td>
                         <td></td>
                         <td style={{ textAlign: 'left' }}>{x.nota || ''}</td>
@@ -760,5 +798,3 @@ export default function HojaPage() {
     </div>
   )
 }
-
-            
