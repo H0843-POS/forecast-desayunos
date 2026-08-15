@@ -126,6 +126,27 @@ const CSS = `
   text-decoration:none;font-family:inherit}
 .stkh-acc .pri{background:var(--acc);border-color:var(--acc);color:#08111c}
 .stkh-acc button:disabled{opacity:.4}
+
+.stkh-print{display:none}
+@media print{
+  .stkh-onscreen{display:none!important}
+  .stkh-print{display:block!important;background:#fff;color:#000;
+    font-family:Arial,Helvetica,sans-serif}
+  .stkh-print *{box-sizing:border-box}
+  .stkh-print h1{font-size:14px;margin:0 0 1px;text-transform:uppercase}
+  .stkh-print h2{font-size:12px;margin:0 0 8px;font-weight:600}
+  .stkh-p-meta{display:flex;justify-content:space-between;font-size:10.5px;margin-bottom:10px}
+  .stkh-print table{width:100%;border-collapse:collapse;font-size:9.5px;margin-bottom:4px}
+  .stkh-print th,.stkh-print td{border:1px solid #999;padding:3px 5px;text-align:right}
+  .stkh-print th:first-child,.stkh-print td:first-child{text-align:left}
+  .stkh-print thead th{background:#eaeaea;font-size:8.5px;text-transform:uppercase}
+  .stkh-p-sec td{background:#f2f2f2;font-weight:700;text-align:left!important}
+  .stkh-p-extra{margin-top:16px}
+  .stkh-p-extra table{width:60%}
+  .stkh-p-firma{margin-top:28px;display:flex;justify-content:space-between;font-size:10.5px}
+  .stkh-p-firma div{width:42%;border-top:1px solid #000;padding-top:4px}
+  @page{margin:12mm 9mm}
+}
 `
 
 export default function HojaPage() {
@@ -138,9 +159,11 @@ export default function HojaPage() {
   const [filtro, setFiltro] = useState('todo')
   const [busca, setBusca] = useState('')
   const [guardado, setGuardado] = useState(false)
+  const [quien, setQuien] = useState('')
 
   useEffect(() => {
     setFecha(hoyOperativo())
+    setQuien(localStorage.getItem('stk_quien') || '')
   }, [])
 
   const cargar = async (fch: string | null) => {
@@ -275,6 +298,7 @@ export default function HojaPage() {
     <div className="stkh">
       <style>{CSS}</style>
 
+      <div className="stkh-onscreen">
       <div className="stkh-top">
         <div className="stkh-row1">
           <div>
@@ -465,6 +489,88 @@ export default function HojaPage() {
           <button onClick={descargarCsv} disabled={!d?.jornada}>
             Descargar CSV
           </button>
+          <button onClick={() => window.print()} disabled={!d?.jornada}>
+            Imprimir
+          </button>
+        </div>
+      </div>
+      </div>
+
+      <div className="stkh-print">
+        <h1>Novotel &amp; Ibis Madrid City Las Ventas</h1>
+        <h2>Control de stocks — restauración{d?.jornada?.perfil ? ` (par ${d.jornada.perfil})` : ''}</h2>
+        <div className="stkh-p-meta">
+          <span>Fecha: {fecha}</span>
+          <span>Iniciales control: {quien || '__________'}</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Producto</th>
+              <th>Fijo</th>
+              <th>Inicial</th>
+              <th>Entradas</th>
+              <th>Final</th>
+              <th>Consumo</th>
+              <th>Ventas</th>
+              <th>Descuadre</th>
+              <th style={{ textAlign: 'left' }}>Comentarios</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(() => {
+              let sec: string | null | undefined = undefined
+              return (d?.filas || []).map((x) => {
+                const etiqueta = [x.categoria, x.seccion].filter(Boolean).join(' · ')
+                const cab = etiqueta !== sec ? ((sec = etiqueta), etiqueta) : null
+                return (
+                  <Fragment key={x.linea_id}>
+                    {cab && (
+                      <tr className="stkh-p-sec">
+                        <td colSpan={9}>{cab}</td>
+                      </tr>
+                    )}
+                    <tr>
+                      <td>{x.producto}</td>
+                      <td>{f(x.par)}</td>
+                      <td>{f(x.inicial)}</td>
+                      <td>{n(x.entradas) ? f(x.entradas) : '—'}</td>
+                      <td>{x.contado ? f(x.final) : ''}</td>
+                      <td>{x.contado ? f(x.consumo) : ''}</td>
+                      <td></td>
+                      <td></td>
+                      <td style={{ textAlign: 'left' }}>{x.nota || ''}</td>
+                    </tr>
+                  </Fragment>
+                )
+              })
+            })()}
+          </tbody>
+        </table>
+
+        <div className="stkh-p-extra">
+          <h2>Reposición extra del día</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th>Cantidad</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <tr key={i}>
+                  <td>&nbsp;</td>
+                  <td></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="stkh-p-firma">
+          <div>Iniciales control</div>
+          <div>Firma</div>
         </div>
       </div>
     </div>
