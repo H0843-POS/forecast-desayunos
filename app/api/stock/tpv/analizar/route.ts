@@ -67,10 +67,13 @@ export async function POST(req: Request) {
       )
     }
 
-    // Los nombres de categoria raiz salen del bloque justo antes de
-    // esa tabla (una fila en blanco los separa)
+    // Los nombres de categoria raiz salen del bloque de resumen que
+    // hay mas arriba, separado de la tabla detallada por una fila en
+    // blanco (a veces mas de una).
     const nombresRaiz = new Set<string>()
-    for (let i = headerIdx - 1; i >= 0; i--) {
+    let i0 = headerIdx - 1
+    while (i0 >= 0 && (rows[i0][0] === null || String(rows[i0][0]).trim() === '')) i0--
+    for (let i = i0; i >= 0; i--) {
       const nombre = rows[i][0]
       if (nombre === null || String(nombre).trim() === '') break
       nombresRaiz.add(norm(nombre))
