@@ -7,11 +7,24 @@ export const runtime = 'nodejs'
 const num = (v: any) =>
   v === undefined || v === null || v === '' ? null : Number(String(v).replace(',', '.'))
 
-// GET  /api/stock/ajustes[?perfil=ID]
-// POST acciones: par | heredar | zona | grupo | perfil | copiar | cal_add | cal_del
+// GET  /api/stock/ajustes[?perfil=ID]            -> ajustes normales
+// GET  /api/stock/ajustes?inactivos=1             -> productos eliminados (para reactivar)
+// POST acciones: par | heredar | objetivo_ubicacion | objetivo_ubicacion_heredar | zona | grupo
+//                | perfil | copiar | cal_add | cal_del | eliminar_producto | reactivar_producto
 export async function GET(req: Request) {
   try {
-    const perfil = new URL(req.url).searchParams.get('perfil')
+    const url = new URL(req.url)
+    if (url.searchParams.get('inactivos')) {
+      const { data, error } = await supabaseStock.rpc('stk_productos_inactivos')
+      if (error) {
+        return NextResponse.json(
+          { error: 'Error de base de datos', detalle: error.message },
+          { status: 500 }
+        )
+      }
+      return NextResponse.json(data)
+    }
+    const perfil = url.searchParams.get('perfil')
     const { data, error } = await supabaseStock.rpc('stk_ajustes', {
       p_perfil: perfil ? Number(perfil) : null,
     })
@@ -62,6 +75,26 @@ export async function POST(req: Request) {
     case 'heredar':
       return rpc('stk_par_heredar', { p_perfil: perfil, p_producto: Number(b.productoId) })
 
+    case 'objetivo_ubicacion': {
+      const u = num(b.unidades)
+      if (u === null || u < 0 || !Number.isFinite(u)) {
+        return NextResponse.json({ error: 'Cantidad no valida' }, { status: 400 })
+      }
+      return rpc('stk_par_ubicacion_set', {
+        p_perfil: perfil,
+        p_producto: Number(b.productoId),
+        p_ubicacion: Number(b.ubicacionId),
+        p_unidades: u,
+      })
+    }
+
+    case 'objetivo_ubicacion_heredar':
+      return rpc('stk_par_ubicacion_heredar', {
+        p_perfil: perfil,
+        p_producto: Number(b.productoId),
+        p_ubicacion: Number(b.ubicacionId),
+      })
+
     case 'zona':
       return rpc('stk_zona_set', {
         p_perfil: perfil,
@@ -107,6 +140,22 @@ export async function POST(req: Request) {
 
     case 'cal_del':
       return rpc('stk_calendario_del', { p_id: Number(b.id) })
+
+    case 'eliminar_producto': {
+      const pid = Number(b.productoId)
+      if (!Number.isFinite(pid)) {
+        return NextResponse.json({ error: 'Producto no valido' }, { status: 400 })
+      }
+      return rpc('stk_producto_desactivar', { p_producto_id: pid })
+    }
+
+    case 'reactivar_producto': {
+      const pid = Number(b.productoId)
+      if (!Number.isFinite(pid)) {
+        return NextResponse.json({ error: 'Producto no valido' }, { status: 400 })
+      }
+      return rpc('stk_producto_reactivar', { p_producto_id: pid })
+    }
 
     default:
       return NextResponse.json({ error: 'Accion desconocida' }, { status: 400 })
