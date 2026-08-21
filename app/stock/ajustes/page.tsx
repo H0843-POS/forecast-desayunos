@@ -60,6 +60,16 @@ const CSS = `
 .stka-busca input{width:100%;height:36px;border-radius:9px;border:1px solid var(--line);
   background:var(--panel);color:var(--txt);padding:0 34px 0 12px;font-size:14.5px;font-family:inherit}
 .stka-busca input:focus{outline:2px solid var(--acc);outline-offset:-1px}
+.stka-inact-tog{margin:8px 14px 0;background:none;border:0;color:var(--dim);font-size:11.5px;
+  text-decoration:underline;cursor:pointer;font-family:inherit;padding:0}
+.stka-inact{margin:8px 14px 0;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.stka-inact-vacio{margin:0;padding:10px 12px;font-size:12px;color:var(--dim)}
+.stka-inact-f{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:8px 12px;border-bottom:1px solid #20252f;font-size:12.5px}
+.stka-inact-f:last-child{border-bottom:0}
+.stka-inact-f small{display:block;color:var(--dim);font-size:10.5px}
+.stka-inact-f button{border:1px solid var(--line);border-radius:7px;background:none;color:var(--acc);
+  font-size:11.5px;padding:4px 9px;cursor:pointer;font-family:inherit;white-space:nowrap}
 .stka-x{position:absolute;right:3px;top:3px;width:30px;height:30px;border:0;background:none;
   color:var(--dim);font-size:17px;cursor:pointer}
 
@@ -87,6 +97,9 @@ const CSS = `
 .stka-sec small{margin-left:auto;font-size:10px;font-weight:600;letter-spacing:0;text-transform:none;
   color:var(--acc);cursor:pointer;border:1px solid var(--line);border-radius:7px;padding:4px 8px}
 .stka-l{padding:10px 14px;border-bottom:1px solid #20252f}
+.stka-del{width:26px;height:26px;border-radius:8px;border:1px solid var(--line);background:none;
+  color:#8a5252;font-size:15px;line-height:1;cursor:pointer;font-family:inherit;flex:0 0 auto}
+.stka-del:hover{background:#3a1d1d;border-color:#7a3a3a;color:#e08080}
 .stka-lr{display:flex;align-items:center;gap:10px}
 .stka-nom{flex:1 1 auto;min-width:0;font-size:14.5px;line-height:1.3}
 .stka-nom small{display:block;color:var(--dim);font-size:10.5px;margin-top:2px}
@@ -134,6 +147,8 @@ export default function AjustesPage() {
   const [hasta, setHasta] = useState('')
   const [aplicando, setAplicando] = useState(false)
   const [aviso, setAviso] = useState<string | null>(null)
+  const [inactivos, setInactivos] = useState<{ id: number; nombre: string; categoria: string }[]>([])
+  const [verInactivos, setVerInactivos] = useState(false)
 
   const cargar = async (p: number | null) => {
     setCargando(true)
@@ -168,6 +183,33 @@ export default function AjustesPage() {
       body: JSON.stringify({ perfilId: perfil, ...body }),
     })
     if (recargar) await cargar(perfil)
+  }
+
+  const cargarInactivos = async () => {
+    try {
+      const r = await fetch('/api/stock/ajustes?inactivos=1')
+      const j = await r.json()
+      if (r.ok) setInactivos(j)
+    } catch {
+      // no crítico: la sección de reactivar simplemente queda vacía
+    }
+  }
+
+  const eliminarProducto = async (id: number, nombre: string) => {
+    if (!confirm(`¿Eliminar «${nombre}»?\n\nDeja de contarse y de aparecer en pedidos, pero su histórico no se borra — podrás reactivarlo cuando quieras.`))
+      return
+    await accion({ accion: 'eliminar_producto', productoId: id })
+    if (verInactivos) await cargarInactivos()
+  }
+
+  const reactivarProducto = async (id: number) => {
+    await fetch('/api/stock/ajustes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ perfilId: perfil, accion: 'reactivar_producto', productoId: id }),
+    })
+    await cargarInactivos()
+    await cargar(perfil)
   }
 
   const actual = useMemo(() => d?.perfiles.find((p) => p.id === perfil) || null, [d, perfil])
@@ -251,6 +293,30 @@ export default function AjustesPage() {
             </button>
           )}
         </div>
+
+        <button
+          className="stka-inact-tog"
+          onClick={() => {
+            const v = !verInactivos
+            setVerInactivos(v)
+            if (v) cargarInactivos()
+          }}
+        >
+          {verInactivos ? 'Ocultar eliminados' : 'Ver productos eliminados'}
+        </button>
+        {verInactivos && (
+          <div className="stka-inact">
+            {inactivos.length === 0 && <p className="stka-inact-vacio">No hay productos eliminados.</p>}
+            {inactivos.map((p) => (
+              <div className="stka-inact-f" key={p.id}>
+                <span>
+                  {p.nombre} <small>{p.categoria}</small>
+                </span>
+                <button onClick={() => reactivarProducto(p.id)}>Reactivar</button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="stka-scroll">
@@ -386,6 +452,14 @@ export default function AjustesPage() {
                           ↺
                         </button>
                       )}
+                      <button
+                        className="stka-del"
+                        title="Eliminar producto"
+                        aria-label={`Eliminar ${p.nombre}`}
+                        onClick={() => eliminarProducto(p.id, p.nombre)}
+                      >
+                        ×
+                      </button>
                     </div>
                     <div className="stka-z">
                       {(d?.ubicaciones || []).map((u) => {
