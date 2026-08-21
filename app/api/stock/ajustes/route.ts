@@ -9,13 +9,25 @@ const num = (v: any) =>
 
 // GET  /api/stock/ajustes[?perfil=ID]            -> ajustes normales
 // GET  /api/stock/ajustes?inactivos=1             -> productos eliminados (para reactivar)
+// GET  /api/stock/ajustes?categorias=1            -> categorias/subcategorias (para el alta)
 // POST acciones: par | heredar | objetivo_ubicacion | objetivo_ubicacion_heredar | zona | grupo
 //                | perfil | copiar | cal_add | cal_del | eliminar_producto | reactivar_producto
+//                | crear_producto
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url)
     if (url.searchParams.get('inactivos')) {
       const { data, error } = await supabaseStock.rpc('stk_productos_inactivos')
+      if (error) {
+        return NextResponse.json(
+          { error: 'Error de base de datos', detalle: error.message },
+          { status: 500 }
+        )
+      }
+      return NextResponse.json(data)
+    }
+    if (url.searchParams.get('categorias')) {
+      const { data, error } = await supabaseStock.rpc('stk_categorias_listado')
       if (error) {
         return NextResponse.json(
           { error: 'Error de base de datos', detalle: error.message },
@@ -155,6 +167,18 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'Producto no valido' }, { status: 400 })
       }
       return rpc('stk_producto_reactivar', { p_producto_id: pid })
+    }
+
+    case 'crear_producto': {
+      const nombre = String(b.nombre || '').trim().slice(0, 120)
+      const cat = String(b.categoriaCodigo || '').trim()
+      if (!nombre) return NextResponse.json({ error: 'Falta el nombre' }, { status: 400 })
+      if (!cat) return NextResponse.json({ error: 'Falta la categoria' }, { status: 400 })
+      return rpc('stk_producto_crear', {
+        p_nombre: nombre,
+        p_categoria_codigo: cat,
+        p_subcategoria_nombre: b.subcategoria ? String(b.subcategoria).trim().slice(0, 80) : null,
+      })
     }
 
     default:
