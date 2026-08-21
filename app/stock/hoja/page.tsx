@@ -18,6 +18,8 @@ type Fila = {
   contado: boolean
   origen_inicial: 'manual' | 'par'
   final_heredado: boolean
+  ventas_tpv: string | null
+  diferencia: string | null
 }
 type Datos = {
   jornada: { id: number; fecha: string; estado: string; perfil: string | null } | null
@@ -169,6 +171,7 @@ const CSS = `
     text-transform:uppercase;letter-spacing:.04em;color:#333;padding-bottom:6px}
   .stkh-p-tabla-resumen tbody tr:nth-child(even){background:#fafafa}
   .stkh-p-hered{color:#999!important;font-style:italic}
+  .stkh-p-desc{font-weight:700;color:#b23a3a!important}
   .stkh-p-tabla-resumen{font-size:9px}
   .stkh-p-sec td{background:#f0f0f0!important;font-weight:700;text-align:left!important;
     text-transform:uppercase;font-size:9.5px;letter-spacing:.03em;border-bottom:1px solid #ccc}
@@ -615,6 +618,7 @@ export default function HojaPage() {
           <Link className="pri" href="/stock/pedido">
             Ir al pedido
           </Link>
+          <Link href="/stock/tpv">Cotejo TPV</Link>
           <button onClick={descargarCsv} disabled={!d?.jornada}>
             Descargar CSV
           </button>
@@ -756,8 +760,10 @@ export default function HojaPage() {
                         <td>{n(x.entradas) ? f(x.entradas) : '—'}</td>
                         <td className={x.final_heredado ? 'stkh-p-hered' : ''}>{x.contado ? f(x.final) : ''}</td>
                         <td className={x.final_heredado ? 'stkh-p-hered' : ''}>{x.contado ? f(x.consumo) : ''}</td>
-                        <td></td>
-                        <td></td>
+                        <td>{x.ventas_tpv !== null ? f(x.ventas_tpv) : ''}</td>
+                        <td className={x.diferencia !== null && Math.abs(n(x.diferencia) || 0) > 0.01 ? 'stkh-p-desc' : ''}>
+                          {x.diferencia !== null ? f(x.diferencia) : ''}
+                        </td>
                         <td style={{ textAlign: 'left' }}>{x.nota || ''}</td>
                       </tr>
                     </Fragment>
