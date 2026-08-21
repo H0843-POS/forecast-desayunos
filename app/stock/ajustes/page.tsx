@@ -60,8 +60,17 @@ const CSS = `
 .stka-busca input{width:100%;height:36px;border-radius:9px;border:1px solid var(--line);
   background:var(--panel);color:var(--txt);padding:0 34px 0 12px;font-size:14.5px;font-family:inherit}
 .stka-busca input:focus{outline:2px solid var(--acc);outline-offset:-1px}
-.stka-inact-tog{margin:8px 14px 0;background:none;border:0;color:var(--dim);font-size:11.5px;
+.stka-inact-tog{margin:0;background:none;border:0;color:var(--dim);font-size:11.5px;
   text-decoration:underline;cursor:pointer;font-family:inherit;padding:0}
+.stka-altbar{margin:8px 14px 0;display:flex;gap:16px}
+.stka-alta{margin:8px 14px 0;padding:10px;border:1px solid var(--line);border-radius:10px;
+  display:flex;flex-direction:column;gap:7px;background:#161a22}
+.stka-alta input,.stka-alta select{height:34px;border-radius:8px;border:1px solid var(--line);
+  background:var(--bg);color:var(--txt);padding:0 9px;font-size:13px;font-family:inherit}
+.stka-alta-err{margin:0;color:var(--warn);font-size:11.5px}
+.stka-alta-btn{height:34px;border-radius:8px;border:1px solid var(--acc);background:var(--acc);
+  color:#08111c;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+.stka-alta-btn:disabled{opacity:.5}
 .stka-inact{margin:8px 14px 0;border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .stka-inact-vacio{margin:0;padding:10px 12px;font-size:12px;color:var(--dim)}
 .stka-inact-f{display:flex;align-items:center;justify-content:space-between;gap:8px;
@@ -149,6 +158,13 @@ export default function AjustesPage() {
   const [aviso, setAviso] = useState<string | null>(null)
   const [inactivos, setInactivos] = useState<{ id: number; nombre: string; categoria: string }[]>([])
   const [verInactivos, setVerInactivos] = useState(false)
+  const [categorias, setCategorias] = useState<{ codigo: string; nombre: string; subcategorias: string[] }[]>([])
+  const [verAlta, setVerAlta] = useState(false)
+  const [altaNombre, setAltaNombre] = useState('')
+  const [altaCat, setAltaCat] = useState('')
+  const [altaSub, setAltaSub] = useState('')
+  const [altaError, setAltaError] = useState<string | null>(null)
+  const [altaEnviando, setAltaEnviando] = useState(false)
 
   const cargar = async (p: number | null) => {
     setCargando(true)
@@ -192,6 +208,53 @@ export default function AjustesPage() {
       if (r.ok) setInactivos(j)
     } catch {
       // no crítico: la sección de reactivar simplemente queda vacía
+    }
+  }
+
+  const cargarCategorias = async () => {
+    if (categorias.length) return
+    try {
+      const r = await fetch('/api/stock/ajustes?categorias=1')
+      const j = await r.json()
+      if (r.ok) setCategorias(j)
+    } catch {
+      // no crítico
+    }
+  }
+
+  const crearProducto = async () => {
+    setAltaError(null)
+    if (!altaNombre.trim()) {
+      setAltaError('Falta el nombre')
+      return
+    }
+    if (!altaCat) {
+      setAltaError('Elige una categoría')
+      return
+    }
+    setAltaEnviando(true)
+    try {
+      const r = await fetch('/api/stock/ajustes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          perfilId: perfil,
+          accion: 'crear_producto',
+          nombre: altaNombre.trim(),
+          categoriaCodigo: altaCat,
+          subcategoria: altaSub || null,
+        }),
+      })
+      const j = await r.json().catch(() => null)
+      if (!r.ok || j?.error) throw new Error(j?.error || 'no se pudo crear')
+      setAltaNombre('')
+      setAltaSub('')
+      setVerAlta(false)
+      await cargar(perfil)
+    } catch (e: any) {
+      setAltaError(e.message)
+    } finally {
+      setAltaEnviando(false)
     }
   }
 
@@ -294,16 +357,64 @@ export default function AjustesPage() {
           )}
         </div>
 
-        <button
-          className="stka-inact-tog"
-          onClick={() => {
-            const v = !verInactivos
-            setVerInactivos(v)
-            if (v) cargarInactivos()
-          }}
-        >
-          {verInactivos ? 'Ocultar eliminados' : 'Ver productos eliminados'}
-        </button>
+        <div className="stka-altbar">
+          <button
+            className="stka-inact-tog"
+            onClick={() => {
+              const v = !verAlta
+              setVerAlta(v)
+              setAltaError(null)
+              if (v) cargarCategorias()
+            }}
+          >
+            {verAlta ? 'Cancelar' : '+ Añadir producto'}
+          </button>
+          <button
+            className="stka-inact-tog"
+            onClick={() => {
+              const v = !verInactivos
+              setVerInactivos(v)
+              if (v) cargarInactivos()
+            }}
+          >
+            {verInactivos ? 'Ocultar eliminados' : 'Ver eliminados'}
+          </button>
+        </div>
+
+        {verAlta && (
+          <div className="stka-alta">
+            <input
+              value={altaNombre}
+              onChange={(e) => setAltaNombre(e.target.value)}
+              placeholder="Nombre del producto"
+              autoComplete="off"
+            />
+            <select value={altaCat} onChange={(e) => { setAltaCat(e.target.value); setAltaSub('') }}>
+              <option value="">Categoría…</option>
+              {categorias.map((c) => (
+                <option key={c.codigo} value={c.codigo}>
+                  {c.nombre}
+                </option>
+              ))}
+            </select>
+            {(categorias.find((c) => c.codigo === altaCat)?.subcategorias.length || 0) > 0 && (
+              <select value={altaSub} onChange={(e) => setAltaSub(e.target.value)}>
+                <option value="">Sin subcategoría</option>
+                {categorias
+                  .find((c) => c.codigo === altaCat)!
+                  .subcategorias.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+              </select>
+            )}
+            {altaError && <p className="stka-alta-err">{altaError}</p>}
+            <button className="stka-alta-btn" disabled={altaEnviando} onClick={crearProducto}>
+              {altaEnviando ? 'Creando…' : 'Crear'}
+            </button>
+          </div>
+        )}
         {verInactivos && (
           <div className="stka-inact">
             {inactivos.length === 0 && <p className="stka-inact-vacio">No hay productos eliminados.</p>}
