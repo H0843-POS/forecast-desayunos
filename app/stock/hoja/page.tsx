@@ -2,8 +2,6 @@
 
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import jsPDF from 'jspdf'
-import autoTable from 'jspdf-autotable'
 
 type Fila = {
   linea_id: number
@@ -404,156 +402,6 @@ export default function HojaPage() {
     }
   }, [modoImpresion])
 
-  const [generandoPdf, setGenerandoPdf] = useState<'auditoria' | 'global' | 'tpv' | null>(null)
-
-  const cabeceraPdf = (doc: jsPDF, titulo: string) => {
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(9)
-    doc.setTextColor(120)
-    doc.text('NOVOTEL & IBIS MADRID · CITY LAS VENTAS', 14, 12)
-    doc.setFontSize(14)
-    doc.setTextColor(20)
-    doc.setFont('helvetica', 'bold')
-    doc.text(titulo, 14, 20)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(9)
-    doc.setTextColor(80)
-    doc.text(`Fecha: ${fecha || ''}`, 150, 12)
-    doc.text(`Control: ${quien || '__________'}`, 150, 17)
-    doc.setDrawColor(180)
-    doc.line(14, 24, 196, 24)
-  }
-
-  const firmaPdf = (doc: jsPDF, y: number) => {
-    const yy = Math.min(y, 275)
-    doc.setDrawColor(0)
-    doc.setFontSize(9)
-    doc.setTextColor(60)
-    doc.line(14, yy, 90, yy)
-    doc.text('Control', 14, yy + 4)
-    doc.line(120, yy, 196, yy)
-    doc.text('Firma', 120, yy + 4)
-  }
-
-  const descargarPdf = async (modo: 'auditoria' | 'global' | 'tpv') => {
-    if (!d?.jornada) return
-    setGenerandoPdf(modo)
-    try {
-      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-
-      if (modo === 'tpv') {
-        const filasTpv = (d.filas || []).filter((x) => x.ventas_tpv !== null)
-        cabeceraPdf(doc, 'Ventas TPV — bebidas')
-        let sec: string | null | undefined = undefined
-        const filas: any[] = []
-        filasTpv.forEach((x) => {
-          const etiqueta = [x.categoria, x.seccion].filter(Boolean).join(' · ')
-          if (etiqueta !== sec) {
-            sec = etiqueta
-            filas.push([{ content: etiqueta, colSpan: 2, styles: { fillColor: [240, 240, 240], fontStyle: 'bold', halign: 'left' } }])
-          }
-          filas.push([x.producto, f(x.ventas_tpv)])
-        })
-        autoTable(doc, {
-          startY: 28,
-          head: [['Producto', 'Ventas TPV']],
-          body: filas,
-          styles: { fontSize: 7.5, cellPadding: 1.5 },
-          headStyles: { fillColor: [230, 230, 230], textColor: 30, fontSize: 7.5 },
-          margin: { left: 14, right: 14 },
-        })
-        const finalY = (doc as any).lastAutoTable?.finalY || 28
-        firmaPdf(doc, finalY + 16)
-        doc.save(`ventas-tpv-${fecha || 'hoy'}.pdf`)
-        return
-      }
-
-      const grupos = modo === 'auditoria' ? gruposAuditoria : gruposGlobal
-      let algunaPagina = false
-
-      grupos.forEach((g) => {
-        const productosGrupo = (d.filas || []).filter((x) => {
-          const pc = conteoPorLinea.get(x.linea_id)
-          if (!pc) return false
-          if (!g.ids.some((id) => pc.ubicaciones.includes(id))) return false
-          if (g.categorias && !g.categorias.includes(x.cat_codigo)) return false
-          return true
-        })
-        if (!productosGrupo.length) return
-        if (algunaPagina) doc.addPage()
-        algunaPagina = true
-
-        cabeceraPdf(doc, g.titulo)
-        let sec: string | null | undefined = undefined
-        const filas: any[] = []
-        productosGrupo.forEach((x) => {
-          const etiqueta = [x.categoria, x.seccion].filter(Boolean).join(' · ')
-          if (etiqueta !== sec) {
-            sec = etiqueta
-            filas.push([{ content: etiqueta, colSpan: 8, styles: { fillColor: [240, 240, 240], fontStyle: 'bold', halign: 'left' } }])
-          }
-          filas.push([
-            x.producto,
-            f(x.par),
-            n(x.entradas) ? f(x.entradas) : '—',
-            celdaSumaZonas(x.linea_id, g.ids),
-            consumoZona(x, g.ids),
-            '',
-            '',
-            x.nota || '',
-          ])
-        })
-        autoTable(doc, {
-          startY: 28,
-          head: [['Producto', 'Fijo', 'Entradas', 'Final', 'Consumo', 'Ventas', 'Descuadre', 'Comentarios']],
-          body: filas,
-          styles: { fontSize: 6.5, cellPadding: 1.3 },
-          headStyles: { fillColor: [230, 230, 230], textColor: 30, fontSize: 6.5 },
-          margin: { left: 14, right: 14 },
-        })
-        const finalY = (doc as any).lastAutoTable?.finalY || 28
-        firmaPdf(doc, finalY + 16)
-      })
-
-      if (modo === 'global') {
-        if (algunaPagina) doc.addPage()
-        cabeceraPdf(doc, `Resumen y cotejo TPV${d.jornada?.perfil ? ` · par ${d.jornada.perfil}` : ''}`)
-        let sec: string | null | undefined = undefined
-        const filas: any[] = []
-        ;(d.filas || []).forEach((x) => {
-          const etiqueta = [x.categoria, x.seccion].filter(Boolean).join(' · ')
-          if (etiqueta !== sec) {
-            sec = etiqueta
-            filas.push([{ content: etiqueta, colSpan: 8, styles: { fillColor: [240, 240, 240], fontStyle: 'bold', halign: 'left' } }])
-          }
-          filas.push([
-            x.producto,
-            f(x.par),
-            n(x.entradas) ? f(x.entradas) : '—',
-            x.contado ? f(x.final) : '',
-            x.contado ? f(x.consumo) : '',
-            x.ventas_tpv !== null ? f(x.ventas_tpv) : '',
-            x.diferencia !== null ? f(x.diferencia) : '',
-            x.nota || '',
-          ])
-        })
-        autoTable(doc, {
-          startY: 28,
-          head: [['Producto', 'Fijo', 'Entradas', 'Final', 'Consumo', 'Ventas', 'Descuadre', 'Comentarios']],
-          body: filas,
-          styles: { fontSize: 6.5, cellPadding: 1.3 },
-          headStyles: { fillColor: [230, 230, 230], textColor: 30, fontSize: 6.5 },
-          margin: { left: 14, right: 14 },
-        })
-        const finalY = (doc as any).lastAutoTable?.finalY || 28
-        firmaPdf(doc, finalY + 16)
-      }
-
-      doc.save(`control-stock-${modo}-${fecha || 'hoy'}.pdf`)
-    } finally {
-      setGenerandoPdf(null)
-    }
-  }
 
   const sumaZonas = (lineaId: number, ids: number[]) => {
     const pc = conteoPorLinea.get(lineaId)
@@ -832,17 +680,8 @@ export default function HojaPage() {
           <button onClick={() => setModoImpresion('global')} disabled={!d?.jornada}>
             Imprimir global
           </button>
-          <button onClick={() => descargarPdf('auditoria')} disabled={!d?.jornada || !!generandoPdf}>
-            {generandoPdf === 'auditoria' ? 'Generando…' : 'PDF auditoría'}
-          </button>
-          <button onClick={() => descargarPdf('global')} disabled={!d?.jornada || !!generandoPdf}>
-            {generandoPdf === 'global' ? 'Generando…' : 'PDF global'}
-          </button>
           <button onClick={() => setModoImpresion('tpv')} disabled={!hayVentasTpv}>
             Imprimir ventas TPV
-          </button>
-          <button onClick={() => descargarPdf('tpv')} disabled={!hayVentasTpv || !!generandoPdf}>
-            {generandoPdf === 'tpv' ? 'Generando…' : 'PDF ventas TPV'}
           </button>
         </div>
       </div>
@@ -867,8 +706,8 @@ export default function HojaPage() {
               <table className="stkh-p-tabla-resumen">
                 <thead>
                   <tr>
-                    <th>Producto</th>
                     <th>Ventas TPV</th>
+                    <th style={{ textAlign: 'left' }}>Producto</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -883,8 +722,8 @@ export default function HojaPage() {
                           </tr>
                         )}
                         <tr>
-                          <td>{x.producto}</td>
                           <td>{f(x.ventas_tpv)}</td>
+                          <td style={{ textAlign: 'left' }}>{x.producto}</td>
                         </tr>
                       </Fragment>
                     )
