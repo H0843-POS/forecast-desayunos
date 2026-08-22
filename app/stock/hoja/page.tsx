@@ -461,12 +461,11 @@ export default function HojaPage() {
           const etiqueta = [x.categoria, x.seccion].filter(Boolean).join(' · ')
           if (etiqueta !== sec) {
             sec = etiqueta
-            filas.push([{ content: etiqueta, colSpan: 9, styles: { fillColor: [240, 240, 240], fontStyle: 'bold', halign: 'left' } }])
+            filas.push([{ content: etiqueta, colSpan: 8, styles: { fillColor: [240, 240, 240], fontStyle: 'bold', halign: 'left' } }])
           }
           filas.push([
             x.producto,
             f(x.par),
-            f(x.inicial),
             n(x.entradas) ? f(x.entradas) : '—',
             celdaSumaZonas(x.linea_id, g.ids),
             consumoZona(x, g.ids),
@@ -477,7 +476,7 @@ export default function HojaPage() {
         })
         autoTable(doc, {
           startY: 28,
-          head: [['Producto', 'Fijo', 'Inicial', 'Entradas', 'Final', 'Consumo', 'Ventas', 'Descuadre', 'Comentarios']],
+          head: [['Producto', 'Fijo', 'Entradas', 'Final', 'Consumo', 'Ventas', 'Descuadre', 'Comentarios']],
           body: filas,
           styles: { fontSize: 6.5, cellPadding: 1.3 },
           headStyles: { fillColor: [230, 230, 230], textColor: 30, fontSize: 6.5 },
@@ -496,12 +495,11 @@ export default function HojaPage() {
           const etiqueta = [x.categoria, x.seccion].filter(Boolean).join(' · ')
           if (etiqueta !== sec) {
             sec = etiqueta
-            filas.push([{ content: etiqueta, colSpan: 9, styles: { fillColor: [240, 240, 240], fontStyle: 'bold', halign: 'left' } }])
+            filas.push([{ content: etiqueta, colSpan: 8, styles: { fillColor: [240, 240, 240], fontStyle: 'bold', halign: 'left' } }])
           }
           filas.push([
             x.producto,
             f(x.par),
-            f(x.inicial),
             n(x.entradas) ? f(x.entradas) : '—',
             x.contado ? f(x.final) : '',
             x.contado ? f(x.consumo) : '',
@@ -512,7 +510,7 @@ export default function HojaPage() {
         })
         autoTable(doc, {
           startY: 28,
-          head: [['Producto', 'Fijo', 'Inicial', 'Entradas', 'Final', 'Consumo', 'Ventas', 'Descuadre', 'Comentarios']],
+          head: [['Producto', 'Fijo', 'Entradas', 'Final', 'Consumo', 'Ventas', 'Descuadre', 'Comentarios']],
           body: filas,
           styles: { fontSize: 6.5, cellPadding: 1.3 },
           headStyles: { fillColor: [230, 230, 230], textColor: 30, fontSize: 6.5 },
@@ -843,7 +841,6 @@ export default function HojaPage() {
                   <tr>
                     <th>Producto</th>
                     <th>Fijo</th>
-                    <th>Inicial</th>
                     <th>Entradas</th>
                     <th>Final</th>
                     <th>Consumo</th>
@@ -860,13 +857,12 @@ export default function HojaPage() {
                       <Fragment key={x.linea_id}>
                         {cab && (
                           <tr className="stkh-p-sec">
-                            <td colSpan={9}>{cab}</td>
+                            <td colSpan={8}>{cab}</td>
                           </tr>
                         )}
                         <tr>
                           <td>{x.producto}</td>
                           <td>{f(x.par)}</td>
-                          <td>{f(x.inicial)}</td>
                           <td>{n(x.entradas) ? f(x.entradas) : '—'}</td>
                           <td className={sumaZonas(x.linea_id, g.ids).heredado ? 'stkh-p-hered' : ''}>
                             {celdaSumaZonas(x.linea_id, g.ids)}
@@ -908,7 +904,6 @@ export default function HojaPage() {
               <tr>
                 <th>Producto</th>
                 <th>Fijo</th>
-                <th>Inicial</th>
                 <th>Entradas</th>
                 <th>Final</th>
                 <th>Consumo</th>
@@ -927,13 +922,12 @@ export default function HojaPage() {
                     <Fragment key={x.linea_id}>
                       {cab && (
                         <tr className="stkh-p-sec">
-                          <td colSpan={9}>{cab}</td>
+                          <td colSpan={8}>{cab}</td>
                         </tr>
                       )}
                       <tr>
                         <td>{x.producto}</td>
                         <td>{f(x.par)}</td>
-                        <td>{f(x.inicial)}</td>
                         <td>{n(x.entradas) ? f(x.entradas) : '—'}</td>
                         <td className={x.final_heredado ? 'stkh-p-hered' : ''}>
                           {x.contado ? desgloseFinal(x.linea_id) || f(x.final) : ''}
