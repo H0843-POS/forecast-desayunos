@@ -13,7 +13,7 @@ const MARCADOR_FIN = ['tipos de medios de pago']
 
 const norm = (s: any) => String(s ?? '').trim().toLowerCase()
 
-type FilaTPV = { nombre: string; cantidad: number }
+type FilaTPV = { nombre: string; cantidad: number; seccion?: string }
 
 export async function POST(req: Request) {
   try {
@@ -116,7 +116,9 @@ export async function POST(req: Request) {
       }
     }
 
-    const candidatos: FilaTPV[] = secciones.flatMap((s) => s.propios)
+    const candidatos: FilaTPV[] = secciones.flatMap((s) =>
+      s.propios.map((p) => ({ ...p, seccion: s.seccion }))
+    )
     if (!candidatos.length) {
       return NextResponse.json(
         { error: 'No se encontraron líneas de Alcohol / Aguas y refrescos / Vinos en este informe' },
