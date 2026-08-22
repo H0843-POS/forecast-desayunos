@@ -2,6 +2,8 @@
 
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
 
 type Fila = {
   linea_id: number
@@ -346,17 +348,186 @@ export default function HojaPage() {
     return m
   }, [dConteo])
 
-  const gruposImpresion = useMemo(() => {
-    const def: { titulo: string; codigos: string[]; categorias?: string[] }[] = [
-      { titulo: 'Bar interior + Office + Terraza', codigos: ['bar_interior', 'office_cocina', 'bar_terraza'] },
-      { titulo: 'Rack eventos', codigos: ['rack'] },
-      { titulo: 'Cava — vinos tintos', codigos: ['cava'], categorias: ['tintos'] },
-      { titulo: 'Cava — blancos, rosados y cavas', codigos: ['cava'], categorias: ['blancos', 'rosados_cavas'] },
-    ]
-    return def
+  type DefGrupo = { titulo: string; codigos: string[]; categorias?: string[] }
+  const resolver = (def: DefGrupo[]) =>
+    def
       .map((g) => ({ ...g, ids: g.codigos.map((c) => idPorCodigo.get(c)).filter((x): x is number => !!x) }))
       .filter((g) => g.ids.length > 0)
-  }, [idPorCodigo])
+
+  // Global: como ya lo teníamos, agrupado por conveniencia de conteo.
+  const gruposGlobal = useMemo(
+    () =>
+      resolver([
+        { titulo: 'Bar interior + Office + Terraza', codigos: ['bar_interior', 'office_cocina', 'bar_terraza'] },
+        { titulo: 'Rack eventos', codigos: ['rack'] },
+        { titulo: 'Cava — vinos tintos', codigos: ['cava'], categorias: ['tintos'] },
+        { titulo: 'Cava — blancos, rosados y cavas', codigos: ['cava'], categorias: ['blancos', 'rosados_cavas'] },
+      ]),
+    [idPorCodigo]
+  )
+
+  // Auditoría: las 5 hojas calcadas al papel físico — el bar excluye
+  // los destilados (van en su propia hoja de Alcoholes), banquetes
+  // va sola, y vinos se reparte igual que en global.
+  const gruposAuditoria = useMemo(
+    () =>
+      resolver([
+        {
+          titulo: 'Bar interior + Office + Terraza',
+          codigos: ['bar_interior', 'office_cocina', 'bar_terraza'],
+          categorias: ['restauracion'],
+        },
+        { titulo: 'Banquetes', codigos: ['rack'] },
+        { titulo: 'Cava — vinos tintos', codigos: ['cava'], categorias: ['tintos'] },
+        { titulo: 'Cava — blancos, rosados y cavas', codigos: ['cava'], categorias: ['blancos', 'rosados_cavas'] },
+        {
+          titulo: 'Alcoholes (bar)',
+          codigos: ['bar_interior', 'bar_terraza'],
+          categorias: ['alcoholes'],
+        },
+      ]),
+    [idPorCodigo]
+  )
+
+  const [modoImpresion, setModoImpresion] = useState<'global' | 'auditoria' | null>(null)
+  const gruposImpresion = modoImpresion === 'auditoria' ? gruposAuditoria : gruposGlobal
+
+  useEffect(() => {
+    if (!modoImpresion) return
+    const alTerminar = () => setModoImpresion(null)
+    window.addEventListener('afterprint', alTerminar)
+    const id = requestAnimationFrame(() => window.print())
+    return () => {
+      cancelAnimationFrame(id)
+      window.removeEventListener('afterprint', alTerminar)
+    }
+  }, [modoImpresion])
+
+  const [generandoPdf, setGenerandoPdf] = useState<'auditoria' | 'global' | null>(null)
+
+  const cabeceraPdf = (doc: jsPDF, titulo: string) => {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    doc.setTextColor(120)
+    doc.text('NOVOTEL & IBIS MADRID · CITY LAS VENTAS', 14, 12)
+    doc.setFontSize(14)
+    doc.setTextColor(20)
+    doc.setFont('helvetica', 'bold')
+    doc.text(titulo, 14, 20)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    doc.setTextColor(80)
+    doc.text(`Fecha: ${fecha || ''}`, 150, 12)
+    doc.text(`Control: ${quien || '__________'}`, 150, 17)
+    doc.setDrawColor(180)
+    doc.line(14, 24, 196, 24)
+  }
+
+  const firmaPdf = (doc: jsPDF, y: number) => {
+    const yy = Math.min(y, 275)
+    doc.setDrawColor(0)
+    doc.setFontSize(9)
+    doc.setTextColor(60)
+    doc.line(14, yy, 90, yy)
+    doc.text('Control', 14, yy + 4)
+    doc.line(120, yy, 196, yy)
+    doc.text('Firma', 120, yy + 4)
+  }
+
+  const descargarPdf = async (modo: 'auditoria' | 'global') => {
+    if (!d?.jornada) return
+    setGenerandoPdf(modo)
+    try {
+      const grupos = modo === 'auditoria' ? gruposAuditoria : gruposGlobal
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+      let algunaPagina = false
+
+      grupos.forEach((g) => {
+        const productosGrupo = (d.filas || []).filter((x) => {
+          const pc = conteoPorLinea.get(x.linea_id)
+          if (!pc) return false
+          if (!g.ids.some((id) => pc.ubicaciones.includes(id))) return false
+          if (g.categorias && !g.categorias.includes(x.cat_codigo)) return false
+          return true
+        })
+        if (!productosGrupo.length) return
+        if (algunaPagina) doc.addPage()
+        algunaPagina = true
+
+        cabeceraPdf(doc, g.titulo)
+        let sec: string | null | undefined = undefined
+        const filas: any[] = []
+        productosGrupo.forEach((x) => {
+          const etiqueta = [x.categoria, x.seccion].filter(Boolean).join(' · ')
+          if (etiqueta !== sec) {
+            sec = etiqueta
+            filas.push([{ content: etiqueta, colSpan: 10, styles: { fillColor: [240, 240, 240], fontStyle: 'bold', halign: 'left' } }])
+          }
+          filas.push([
+            x.producto,
+            f(x.par),
+            sumaObjetivo(x.linea_id, g.ids),
+            f(x.inicial),
+            n(x.entradas) ? f(x.entradas) : '—',
+            celdaSumaZonas(x.linea_id, g.ids),
+            consumoZona(x, g.ids),
+            '',
+            '',
+            x.nota || '',
+          ])
+        })
+        autoTable(doc, {
+          startY: 28,
+          head: [['Producto', 'Fijo', 'Objetivo', 'Inicial', 'Entradas', 'Final', 'Consumo', 'Ventas', 'Descuadre', 'Comentarios']],
+          body: filas,
+          styles: { fontSize: 6.5, cellPadding: 1.3 },
+          headStyles: { fillColor: [230, 230, 230], textColor: 30, fontSize: 6.5 },
+          margin: { left: 14, right: 14 },
+        })
+        const finalY = (doc as any).lastAutoTable?.finalY || 28
+        firmaPdf(doc, finalY + 16)
+      })
+
+      if (modo === 'global') {
+        if (algunaPagina) doc.addPage()
+        cabeceraPdf(doc, `Resumen y cotejo TPV${d.jornada?.perfil ? ` · par ${d.jornada.perfil}` : ''}`)
+        let sec: string | null | undefined = undefined
+        const filas: any[] = []
+        ;(d.filas || []).forEach((x) => {
+          const etiqueta = [x.categoria, x.seccion].filter(Boolean).join(' · ')
+          if (etiqueta !== sec) {
+            sec = etiqueta
+            filas.push([{ content: etiqueta, colSpan: 9, styles: { fillColor: [240, 240, 240], fontStyle: 'bold', halign: 'left' } }])
+          }
+          filas.push([
+            x.producto,
+            f(x.par),
+            f(x.inicial),
+            n(x.entradas) ? f(x.entradas) : '—',
+            x.contado ? f(x.final) : '',
+            x.contado ? f(x.consumo) : '',
+            x.ventas_tpv !== null ? f(x.ventas_tpv) : '',
+            x.diferencia !== null ? f(x.diferencia) : '',
+            x.nota || '',
+          ])
+        })
+        autoTable(doc, {
+          startY: 28,
+          head: [['Producto', 'Fijo', 'Inicial', 'Entradas', 'Final', 'Consumo', 'Ventas', 'Descuadre', 'Comentarios']],
+          body: filas,
+          styles: { fontSize: 6.5, cellPadding: 1.3 },
+          headStyles: { fillColor: [230, 230, 230], textColor: 30, fontSize: 6.5 },
+          margin: { left: 14, right: 14 },
+        })
+        const finalY = (doc as any).lastAutoTable?.finalY || 28
+        firmaPdf(doc, finalY + 16)
+      }
+
+      doc.save(`control-stock-${modo}-${fecha || 'hoy'}.pdf`)
+    } finally {
+      setGenerandoPdf(null)
+    }
+  }
 
   const sumaZonas = (lineaId: number, ids: number[]) => {
     const pc = conteoPorLinea.get(lineaId)
@@ -395,6 +566,20 @@ export default function HojaPage() {
       }
     })
     return alguno ? f(suma) : '—'
+  }
+
+  const desgloseFinal = (lineaId: number) => {
+    const pc = conteoPorLinea.get(lineaId)
+    if (!pc) return null
+    const ubics = (dConteo?.ubicaciones || []).filter((u) => !u.almacen && pc.ubicaciones.includes(u.id))
+    if (ubics.length <= 1) return null
+    const valores = ubics.map((u) => {
+      const v = pc.conteos[String(u.id)]
+      const h = pc.heredados?.[String(u.id)]
+      return v !== undefined ? v : h !== undefined ? h : 0
+    })
+    if (valores.every((v) => v === 0)) return null
+    return valores.map((v) => f(v)).join('+')
   }
 
   const consumoZona = (x: Fila, ids: number[]) => {
@@ -630,8 +815,17 @@ export default function HojaPage() {
               placeholder="Iniciales…"
             />
           </label>
-          <button onClick={() => window.print()} disabled={!d?.jornada}>
-            Imprimir
+          <button onClick={() => setModoImpresion('auditoria')} disabled={!d?.jornada}>
+            Imprimir auditoría (5 hojas)
+          </button>
+          <button onClick={() => setModoImpresion('global')} disabled={!d?.jornada}>
+            Imprimir global
+          </button>
+          <button onClick={() => descargarPdf('auditoria')} disabled={!d?.jornada || !!generandoPdf}>
+            {generandoPdf === 'auditoria' ? 'Generando…' : 'PDF auditoría'}
+          </button>
+          <button onClick={() => descargarPdf('global')} disabled={!d?.jornada || !!generandoPdf}>
+            {generandoPdf === 'global' ? 'Generando…' : 'PDF global'}
           </button>
         </div>
       </div>
@@ -715,6 +909,7 @@ export default function HojaPage() {
           )
         })}
 
+        {modoImpresion !== 'auditoria' && (
         <div className="stkh-p-pagina">
           <div className="stkh-p-cab">
             <div>
@@ -758,7 +953,9 @@ export default function HojaPage() {
                         <td>{f(x.par)}</td>
                         <td>{f(x.inicial)}</td>
                         <td>{n(x.entradas) ? f(x.entradas) : '—'}</td>
-                        <td className={x.final_heredado ? 'stkh-p-hered' : ''}>{x.contado ? f(x.final) : ''}</td>
+                        <td className={x.final_heredado ? 'stkh-p-hered' : ''}>
+                          {x.contado ? desgloseFinal(x.linea_id) || f(x.final) : ''}
+                        </td>
                         <td className={x.final_heredado ? 'stkh-p-hered' : ''}>{x.contado ? f(x.consumo) : ''}</td>
                         <td>{x.ventas_tpv !== null ? f(x.ventas_tpv) : ''}</td>
                         <td className={x.diferencia !== null && Math.abs(n(x.diferencia) || 0) > 0.01 ? 'stkh-p-desc' : ''}>
@@ -800,6 +997,7 @@ export default function HojaPage() {
             <div>Firma</div>
           </div>
         </div>
+        )}
       </div>
     </div>
   )
