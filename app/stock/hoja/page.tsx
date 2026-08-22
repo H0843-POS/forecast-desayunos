@@ -1,7 +1,8 @@
 'use client'
 
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, Suspense, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 
 type Fila = {
   linea_id: number
@@ -184,6 +185,15 @@ const CSS = `
 `
 
 export default function HojaPage() {
+  return (
+    <Suspense fallback={null}>
+      <HojaPageInterior />
+    </Suspense>
+  )
+}
+
+function HojaPageInterior() {
+  const searchParams = useSearchParams()
   // La fecha NO se calcula en el primer render: el servidor va en UTC y el
   // navegador en Madrid, y esa diferencia rompe la hidratacion de React.
   const [fecha, setFecha] = useState<string | null>(null)
@@ -196,7 +206,8 @@ export default function HojaPage() {
   const [quien, setQuien] = useState('')
 
   useEffect(() => {
-    setFecha(hoyOperativo())
+    const fechaUrl = searchParams.get('fecha')
+    setFecha(fechaUrl && /^\d{4}-\d{2}-\d{2}$/.test(fechaUrl) ? fechaUrl : hoyOperativo())
     setQuien(localStorage.getItem('stk_quien') || '')
   }, [])
 
