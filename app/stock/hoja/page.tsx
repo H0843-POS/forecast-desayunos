@@ -811,8 +811,10 @@ function HojaPageInterior() {
                           <td className={sumaZonas(x.linea_id, g.ids).heredado ? 'stkh-p-hered' : ''}>
                             {consumoZona(x, g.ids)}
                           </td>
-                          <td></td>
-                          <td></td>
+                          <td>{x.ventas_tpv !== null ? f(x.ventas_tpv) : ''}</td>
+                          <td className={x.diferencia !== null && Math.abs(n(x.diferencia) || 0) > 0.01 ? 'stkh-p-desc' : ''}>
+                            {x.diferencia !== null ? f(x.diferencia) : ''}
+                          </td>
                           <td style={{ textAlign: 'left' }}>{x.nota || ''}</td>
                         </tr>
                       </Fragment>
@@ -820,6 +822,10 @@ function HojaPageInterior() {
                   })}
                 </tbody>
               </table>
+              <p style={{ fontSize: 8.5, color: '#888', margin: '4px 0 0' }}>
+                Ventas y Descuadre son del producto completo (todas sus zonas juntas) — en productos que
+                se cuentan en más de una zona, fíate del total de la página de Resumen.
+              </p>
               <div className="stkh-p-firma">
                 <div>Control</div>
                 <div>Firma</div>
