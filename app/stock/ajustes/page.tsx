@@ -677,7 +677,8 @@ export default function AjustesPage() {
                         0
                       )
                       if (sumaZonas === 0) return null
-                      const cuadra = Math.abs(sumaZonas - Number(p.par)) < 0.01
+                      const diff = sumaZonas - Number(p.par)
+                      const cuadra = Math.abs(diff) < 0.01
                       return (
                         <p
                           style={{
@@ -687,7 +688,7 @@ export default function AjustesPage() {
                           }}
                         >
                           Suma de zonas: {f(sumaZonas)} · Par: {f(p.par)}
-                          {!cuadra && ' — no cuadra'}
+                          {!cuadra && (diff < 0 ? ` — faltan ${f(-diff)}` : ` — sobran ${f(diff)}`)}
                         </p>
                       )
                     })()}
