@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 
 type Ubi = { id: number; codigo: string; nombre: string }
@@ -60,6 +60,10 @@ const CSS = `
 .stka-busca input{width:100%;height:36px;border-radius:9px;border:1px solid var(--line);
   background:var(--panel);color:var(--txt);padding:0 34px 0 12px;font-size:14.5px;font-family:inherit}
 .stka-busca input:focus{outline:2px solid var(--acc);outline-offset:-1px}
+.stka-zfiltro{display:flex;gap:5px;flex-wrap:wrap;margin:8px 14px 0}
+.stka-zfb{padding:5px 10px;border-radius:999px;border:1px solid var(--line);background:none;
+  color:#5d6577;font-size:11.5px;cursor:pointer;font-family:inherit}
+.stka-zfb[data-on="1"]{background:var(--acc);border-color:var(--acc);color:#08111c;font-weight:600}
 .stka-inact-tog{margin:0;background:none;border:0;color:var(--dim);font-size:11.5px;
   text-decoration:underline;cursor:pointer;font-family:inherit;padding:0}
 .stka-altbar{margin:8px 14px 0;display:flex;gap:16px}
@@ -151,6 +155,7 @@ export default function AjustesPage() {
   const [cargando, setCargando] = useState(true)
   const [fallo, setFallo] = useState<string | null>(null)
   const [busca, setBusca] = useState('')
+  const [zonaFiltro, setZonaFiltro] = useState<number | null>(null)
   const [verCal, setVerCal] = useState(false)
   const [desde, setDesde] = useState('')
   const [hasta, setHasta] = useState('')
@@ -192,13 +197,21 @@ export default function AjustesPage() {
     cargar(null)
   }, [])
 
+  const scrollRef = useRef<HTMLDivElement>(null)
+
   const accion = async (body: any, recargar = true) => {
+    const scrollPos = scrollRef.current?.scrollTop
     await fetch('/api/stock/ajustes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ perfilId: perfil, ...body }),
     })
-    if (recargar) await cargar(perfil)
+    if (recargar) {
+      await cargar(perfil)
+      requestAnimationFrame(() => {
+        if (scrollRef.current && scrollPos !== undefined) scrollRef.current.scrollTop = scrollPos
+      })
+    }
   }
 
   const cargarInactivos = async () => {
@@ -279,10 +292,16 @@ export default function AjustesPage() {
 
   const productos = useMemo(() => {
     if (!d) return []
-    if (!busca.trim()) return d.productos
-    const q = sinTildes(busca.trim())
-    return d.productos.filter((p) => sinTildes(p.nombre).includes(q))
-  }, [d, busca])
+    let lista = d.productos
+    if (busca.trim()) {
+      const q = sinTildes(busca.trim())
+      lista = lista.filter((p) => sinTildes(p.nombre).includes(q))
+    }
+    if (zonaFiltro !== null) {
+      lista = lista.filter((p) => p.zonas.includes(zonaFiltro))
+    }
+    return lista
+  }, [d, busca, zonaFiltro])
 
   const propios = (d?.productos || []).filter((p) => p.propio).length
 
@@ -355,6 +374,26 @@ export default function AjustesPage() {
               ×
             </button>
           )}
+        </div>
+
+        <div className="stka-zfiltro">
+          <button
+            className="stka-zfb"
+            data-on={zonaFiltro === null ? '1' : '0'}
+            onClick={() => setZonaFiltro(null)}
+          >
+            Todas las zonas
+          </button>
+          {(d?.ubicaciones || []).map((u) => (
+            <button
+              key={u.id}
+              className="stka-zfb"
+              data-on={zonaFiltro === u.id ? '1' : '0'}
+              onClick={() => setZonaFiltro(u.id)}
+            >
+              {u.nombre}
+            </button>
+          ))}
         </div>
 
         <div className="stka-altbar">
@@ -430,7 +469,7 @@ export default function AjustesPage() {
         )}
       </div>
 
-      <div className="stka-scroll">
+      <div className="stka-scroll" ref={scrollRef}>
         {cargando ? (
           <p className="stka-msg">Cargando…</p>
         ) : (
