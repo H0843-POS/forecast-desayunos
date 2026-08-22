@@ -78,32 +78,6 @@ const CSS = `
 .stkt-ok{margin:16px 14px;padding:12px;border:1px solid #2e6b46;background:#122019;
   border-radius:10px;font-size:13px}
 .stkt-ok a{color:var(--acc)}
-.stkt-imp{margin-top:10px;height:36px;padding:0 14px;border-radius:9px;border:1px solid var(--acc);
-  background:none;color:var(--acc);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
-
-.stkt-print{display:none}
-@media print{
-  .stkt{height:auto!important;overflow:visible!important;background:#fff;color:#000;
-    font-family:Arial,Helvetica,sans-serif}
-  .stkt-onscreen{display:none!important}
-  .stkt-print{display:block!important}
-  .stkt-print *{box-sizing:border-box}
-  .stkt-p-cab{border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:14px;
-    display:flex;justify-content:space-between;align-items:flex-end}
-  .stkt-p-cab h1{font-size:11px;margin:0 0 3px;font-weight:400;letter-spacing:.03em;
-    text-transform:uppercase;color:#555}
-  .stkt-p-cab h2{font-size:18px;margin:0;font-weight:700}
-  .stkt-p-cab-r{text-align:right;font-size:10.5px;color:#333}
-  .stkt-print h3{font-size:12px;text-transform:uppercase;letter-spacing:.03em;
-    background:#f0f0f0;padding:5px 8px;margin:16px 0 0}
-  .stkt-print table{width:100%;border-collapse:collapse;font-size:11px;margin-top:0}
-  .stkt-print th,.stkt-print td{border-bottom:1px solid #ccc;padding:5px 8px;text-align:right}
-  .stkt-print th:first-child,.stkt-print td:first-child{text-align:left}
-  .stkt-print thead th{border-bottom:1.5px solid #000;font-size:9.5px;text-transform:uppercase;
-    color:#333}
-  .stkt-p-recon{font-size:10px;color:#666;margin:3px 0 0;text-align:right}
-  @page{margin:12mm 10mm}
-}
 `
 
 export default function TpvPage() {
@@ -230,9 +204,6 @@ export default function TpvPage() {
                 ))}
               </tbody>
             </table>
-            <button className="stkt-imp" onClick={() => window.print()}>
-              Imprimir lo ticado
-            </button>
           </div>
 
           {pendientes.length > 0 && (
@@ -278,47 +249,6 @@ export default function TpvPage() {
         </>
       )}
       </div>
-
-      {datos && (
-        <div className="stkt-print">
-          <div className="stkt-p-cab">
-            <div>
-              <h1>Novotel &amp; Ibis Madrid · City Las Ventas</h1>
-              <h2>Lo ticado en el TPV</h2>
-            </div>
-            <div className="stkt-p-cab-r">Fecha: {datos.fecha}</div>
-          </div>
-          {datos.reconciliacion.map((r) => {
-            const filasSeccion = datos.lineas.filter((l) => l.seccion === r.seccion)
-            if (!filasSeccion.length) return null
-            return (
-              <div key={r.seccion}>
-                <h3>{r.seccion}</h3>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Producto (nombre TPV)</th>
-                      <th>Cantidad</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filasSeccion.map((l, i) => (
-                      <tr key={`${l.nombre}-${i}`}>
-                        <td>{l.nombre}</td>
-                        <td>{f(l.cantidad)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <p className="stkt-p-recon">
-                  Declarado por el informe: {f(r.declarado)} · Suma de líneas: {f(r.sumado)}{' '}
-                  {r.cuadra ? '✓ cuadra' : '⚠ no cuadra'}
-                </p>
-              </div>
-            )
-          })}
-        </div>
-      )}
     </div>
   )
 }
@@ -449,3 +379,4 @@ function ItemPendiente({ nombre, onResuelto }: { nombre: string; onResuelto: () 
     </div>
   )
 }
+
