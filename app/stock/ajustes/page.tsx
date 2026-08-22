@@ -64,6 +64,20 @@ const CSS = `
 .stka-zfb{padding:5px 10px;border-radius:999px;border:1px solid var(--line);background:none;
   color:#5d6577;font-size:11.5px;cursor:pointer;font-family:inherit}
 .stka-zfb[data-on="1"]{background:var(--acc);border-color:var(--acc);color:#08111c;font-weight:600}
+.stka-pend{margin:10px 14px 0;padding:9px 10px;border-radius:10px;background:#2a2410;
+  border:1px solid #6b5a1f;display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:8px}
+.stka-pend span{font-size:12.5px;color:#e8c95a;font-weight:600}
+.stka-pend-btns{display:flex;gap:8px}
+.stka-pend-aplicar{height:32px;padding:0 14px;border-radius:8px;border:1px solid var(--acc);
+  background:var(--acc);color:#08111c;font-size:12.5px;font-weight:700;cursor:pointer;
+  font-family:inherit}
+.stka-pend-aplicar:disabled{opacity:.5}
+.stka-pend-cancelar{height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--line);
+  background:none;color:var(--dim);font-size:12.5px;cursor:pointer;font-family:inherit}
+.stka-pend-err{width:100%;margin:2px 0 0;color:#e08080;font-size:11.5px}
+.stka-in[data-cambiado="1"],.stka-zw input[data-cambiado="1"]{border-color:#e8c95a!important;
+  box-shadow:0 0 0 1px #e8c95a}
 .stka-inact-tog{margin:0;background:none;border:0;color:var(--dim);font-size:11.5px;
   text-decoration:underline;cursor:pointer;font-family:inherit;padding:0}
 .stka-altbar{margin:8px 14px 0;display:flex;gap:16px}
@@ -171,6 +185,8 @@ export default function AjustesPage() {
   const [altaError, setAltaError] = useState<string | null>(null)
   const [altaEnviando, setAltaEnviando] = useState(false)
 
+  const [resetKey, setResetKey] = useState(0)
+
   const cargar = async (p: number | null) => {
     setCargando(true)
     setFallo(null)
@@ -184,8 +200,13 @@ export default function AjustesPage() {
         throw new Error(t.slice(0, 200) || 'respuesta vacía')
       }
       if (!r.ok) throw new Error(j.detalle || j.error)
+      if (Object.keys(pendientes).length && j.perfil_id !== perfil) {
+        setPendientes({})
+        setErrorAplicar(null)
+      }
       setD(j)
       setPerfil(j.perfil_id)
+      setResetKey((k) => k + 1)
     } catch (e: any) {
       setFallo(e.message)
     } finally {
@@ -198,6 +219,73 @@ export default function AjustesPage() {
   }, [])
 
   const scrollRef = useRef<HTMLDivElement>(null)
+
+  type Pendiente =
+    | { tipo: 'par'; productoId: number; valor: string }
+    | { tipo: 'objetivo'; productoId: number; ubicacionId: number; valor: string }
+  const [pendientes, setPendientes] = useState<Record<string, Pendiente>>({})
+  const [aplicandoCambios, setAplicandoCambios] = useState(false)
+  const [errorAplicar, setErrorAplicar] = useState<string | null>(null)
+
+  const marcarPar = (productoId: number, actual: number, valor: string) => {
+    const clave = `par:${productoId}`
+    setPendientes((s) => {
+      const n = { ...s }
+      if (Number(valor.replace(',', '.')) === Number(actual)) delete n[clave]
+      else n[clave] = { tipo: 'par', productoId, valor }
+      return n
+    })
+  }
+
+  const marcarObjetivo = (productoId: number, ubicacionId: number, actual: number, valor: string) => {
+    const clave = `obj:${productoId}:${ubicacionId}`
+    setPendientes((s) => {
+      const n = { ...s }
+      if (Number(valor.replace(',', '.')) === Number(actual)) delete n[clave]
+      else n[clave] = { tipo: 'objetivo', productoId, ubicacionId, valor }
+      return n
+    })
+  }
+
+  const aplicarCambios = async () => {
+    const lista = Object.values(pendientes)
+    if (!lista.length) return
+    setAplicandoCambios(true)
+    setErrorAplicar(null)
+    const scrollPos = scrollRef.current?.scrollTop
+    try {
+      const resultados = await Promise.all(
+        lista.map(async (p) => {
+          const body =
+            p.tipo === 'par'
+              ? { accion: 'par', productoId: p.productoId, unidades: p.valor }
+              : {
+                  accion: 'objetivo_ubicacion',
+                  productoId: p.productoId,
+                  ubicacionId: p.ubicacionId,
+                  unidades: p.valor,
+                }
+          const r = await fetch('/api/stock/ajustes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ perfilId: perfil, ...body }),
+          })
+          return r.ok
+        })
+      )
+      if (resultados.some((ok) => !ok)) {
+        setErrorAplicar('Algún cambio no se pudo guardar — revisa los valores y vuelve a intentarlo.')
+      } else {
+        setPendientes({})
+      }
+      await cargar(perfil)
+      requestAnimationFrame(() => {
+        if (scrollRef.current && scrollPos !== undefined) scrollRef.current.scrollTop = scrollPos
+      })
+    } finally {
+      setAplicandoCambios(false)
+    }
+  }
 
   const accion = async (body: any, recargar = true) => {
     const scrollPos = scrollRef.current?.scrollTop
@@ -467,6 +555,29 @@ export default function AjustesPage() {
             ))}
           </div>
         )}
+
+        {Object.keys(pendientes).length > 0 && (
+          <div className="stka-pend">
+            <span>{Object.keys(pendientes).length} cambio(s) sin guardar</span>
+            <div className="stka-pend-btns">
+              <button
+                className="stka-pend-cancelar"
+                disabled={aplicandoCambios}
+                onClick={() => {
+                  setPendientes({})
+                  setErrorAplicar(null)
+                  cargar(perfil)
+                }}
+              >
+                Descartar
+              </button>
+              <button className="stka-pend-aplicar" disabled={aplicandoCambios} onClick={aplicarCambios}>
+                {aplicandoCambios ? 'Aplicando…' : 'Aplicar cambios'}
+              </button>
+            </div>
+            {errorAplicar && <p className="stka-pend-err">{errorAplicar}</p>}
+          </div>
+        )}
       </div>
 
       <div className="stka-scroll" ref={scrollRef}>
@@ -580,17 +691,15 @@ export default function AjustesPage() {
                         </small>
                       </span>
                       <input
+                        key={`par-${p.id}-${resetKey}`}
                         className="stka-in"
                         data-propio={p.propio ? '1' : '0'}
+                        data-cambiado={pendientes[`par:${p.id}`] ? '1' : '0'}
                         inputMode="decimal"
                         defaultValue={f(p.par)}
                         aria-label={`Stock inicial de ${p.nombre}`}
                         onFocus={(e) => e.currentTarget.select()}
-                        onBlur={(e) => {
-                          const v = e.target.value.replace(',', '.')
-                          if (Number(v) === Number(p.par)) return
-                          accion({ accion: 'par', productoId: p.id, unidades: v })
-                        }}
+                        onChange={(e) => marcarPar(p.id, Number(p.par), e.target.value)}
                       />
                       {p.propio && actual?.padre && (
                         <button
@@ -650,22 +759,17 @@ export default function AjustesPage() {
                               {u.nombre}
                             </button>
                             <input
+                              key={`obj-${p.id}-${u.id}-${resetKey}`}
                               data-propio={propioObjetivo ? '1' : '0'}
+                              data-cambiado={pendientes[`obj:${p.id}:${u.id}`] ? '1' : '0'}
                               inputMode="decimal"
                               defaultValue={f(p.objetivos?.[String(u.id)] ?? 0)}
                               aria-label={`Objetivo de ${p.nombre} en ${u.nombre}`}
                               title={propioObjetivo ? 'Objetivo propio de este perfil' : 'Objetivo heredado (0 por defecto)'}
                               onFocus={(e) => e.currentTarget.select()}
-                              onBlur={(e) => {
-                                const v = e.target.value.replace(',', '.')
-                                if (Number(v) === Number(p.objetivos?.[String(u.id)] ?? 0)) return
-                                accion({
-                                  accion: 'objetivo_ubicacion',
-                                  productoId: p.id,
-                                  ubicacionId: u.id,
-                                  unidades: v,
-                                })
-                              }}
+                              onChange={(e) =>
+                                marcarObjetivo(p.id, u.id, Number(p.objetivos?.[String(u.id)] ?? 0), e.target.value)
+                              }
                             />
                           </span>
                         )
