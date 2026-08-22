@@ -242,7 +242,7 @@ export default function TpvPage() {
                 </p>
               )}
               <p style={{ marginTop: 8 }}>
-                <Link href="/stock/hoja">Ver la Hoja del día →</Link>
+                <Link href={`/stock/hoja?fecha=${resultado.fecha}`}>Ver la Hoja del día →</Link>
               </p>
             </div>
           )}
@@ -379,4 +379,3 @@ function ItemPendiente({ nombre, onResuelto }: { nombre: string; onResuelto: () 
     </div>
   )
 }
-
