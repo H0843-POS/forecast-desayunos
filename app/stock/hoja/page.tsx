@@ -389,8 +389,9 @@ export default function HojaPage() {
     [idPorCodigo]
   )
 
-  const [modoImpresion, setModoImpresion] = useState<'global' | 'auditoria' | null>(null)
+  const [modoImpresion, setModoImpresion] = useState<'global' | 'auditoria' | 'tpv' | null>(null)
   const gruposImpresion = modoImpresion === 'auditoria' ? gruposAuditoria : gruposGlobal
+  const hayVentasTpv = (d?.filas || []).some((x) => x.ventas_tpv !== null)
 
   useEffect(() => {
     if (!modoImpresion) return
@@ -403,7 +404,7 @@ export default function HojaPage() {
     }
   }, [modoImpresion])
 
-  const [generandoPdf, setGenerandoPdf] = useState<'auditoria' | 'global' | null>(null)
+  const [generandoPdf, setGenerandoPdf] = useState<'auditoria' | 'global' | 'tpv' | null>(null)
 
   const cabeceraPdf = (doc: jsPDF, titulo: string) => {
     doc.setFont('helvetica', 'normal')
@@ -434,12 +435,40 @@ export default function HojaPage() {
     doc.text('Firma', 120, yy + 4)
   }
 
-  const descargarPdf = async (modo: 'auditoria' | 'global') => {
+  const descargarPdf = async (modo: 'auditoria' | 'global' | 'tpv') => {
     if (!d?.jornada) return
     setGenerandoPdf(modo)
     try {
-      const grupos = modo === 'auditoria' ? gruposAuditoria : gruposGlobal
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+
+      if (modo === 'tpv') {
+        const filasTpv = (d.filas || []).filter((x) => x.ventas_tpv !== null)
+        cabeceraPdf(doc, 'Ventas TPV — bebidas')
+        let sec: string | null | undefined = undefined
+        const filas: any[] = []
+        filasTpv.forEach((x) => {
+          const etiqueta = [x.categoria, x.seccion].filter(Boolean).join(' · ')
+          if (etiqueta !== sec) {
+            sec = etiqueta
+            filas.push([{ content: etiqueta, colSpan: 2, styles: { fillColor: [240, 240, 240], fontStyle: 'bold', halign: 'left' } }])
+          }
+          filas.push([x.producto, f(x.ventas_tpv)])
+        })
+        autoTable(doc, {
+          startY: 28,
+          head: [['Producto', 'Ventas TPV']],
+          body: filas,
+          styles: { fontSize: 7.5, cellPadding: 1.5 },
+          headStyles: { fillColor: [230, 230, 230], textColor: 30, fontSize: 7.5 },
+          margin: { left: 14, right: 14 },
+        })
+        const finalY = (doc as any).lastAutoTable?.finalY || 28
+        firmaPdf(doc, finalY + 16)
+        doc.save(`ventas-tpv-${fecha || 'hoy'}.pdf`)
+        return
+      }
+
+      const grupos = modo === 'auditoria' ? gruposAuditoria : gruposGlobal
       let algunaPagina = false
 
       grupos.forEach((g) => {
@@ -809,12 +838,67 @@ export default function HojaPage() {
           <button onClick={() => descargarPdf('global')} disabled={!d?.jornada || !!generandoPdf}>
             {generandoPdf === 'global' ? 'Generando…' : 'PDF global'}
           </button>
+          <button onClick={() => setModoImpresion('tpv')} disabled={!hayVentasTpv}>
+            Imprimir ventas TPV
+          </button>
+          <button onClick={() => descargarPdf('tpv')} disabled={!hayVentasTpv || !!generandoPdf}>
+            {generandoPdf === 'tpv' ? 'Generando…' : 'PDF ventas TPV'}
+          </button>
         </div>
       </div>
       </div>
 
       <div className="stkh-print">
-        {gruposImpresion.map((g) => {
+        {modoImpresion === 'tpv' && (() => {
+          const filasTpv = (d?.filas || []).filter((x) => x.ventas_tpv !== null)
+          let sec: string | null | undefined = undefined
+          return (
+            <div className="stkh-p-pagina">
+              <div className="stkh-p-cab">
+                <div>
+                  <h1>Novotel &amp; Ibis Madrid City Las Ventas</h1>
+                  <h2>Ventas TPV — bebidas</h2>
+                </div>
+                <div className="stkh-p-cab-r">
+                  <div>Fecha: <b>{fecha}</b></div>
+                  <div>Control: <b>{quien || '__________'}</b></div>
+                </div>
+              </div>
+              <table className="stkh-p-tabla-resumen">
+                <thead>
+                  <tr>
+                    <th>Producto</th>
+                    <th>Ventas TPV</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filasTpv.map((x) => {
+                    const etiqueta = [x.categoria, x.seccion].filter(Boolean).join(' · ')
+                    const cab = etiqueta !== sec ? ((sec = etiqueta), etiqueta) : null
+                    return (
+                      <Fragment key={x.linea_id}>
+                        {cab && (
+                          <tr className="stkh-p-sec">
+                            <td colSpan={2}>{cab}</td>
+                          </tr>
+                        )}
+                        <tr>
+                          <td>{x.producto}</td>
+                          <td>{f(x.ventas_tpv)}</td>
+                        </tr>
+                      </Fragment>
+                    )
+                  })}
+                </tbody>
+              </table>
+              <div className="stkh-p-firma">
+                <div>Control</div>
+                <div>Firma</div>
+              </div>
+            </div>
+          )
+        })()}
+        {modoImpresion !== 'tpv' && gruposImpresion.map((g) => {
           const productosGrupo = (d?.filas || []).filter((x) => {
             const pc = conteoPorLinea.get(x.linea_id)
             if (!pc) return false
@@ -887,7 +971,7 @@ export default function HojaPage() {
           )
         })}
 
-        {modoImpresion !== 'auditoria' && (
+        {modoImpresion === 'global' && (
         <div className="stkh-p-pagina">
           <div className="stkh-p-cab">
             <div>
