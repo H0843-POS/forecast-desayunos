@@ -461,12 +461,11 @@ export default function HojaPage() {
           const etiqueta = [x.categoria, x.seccion].filter(Boolean).join(' · ')
           if (etiqueta !== sec) {
             sec = etiqueta
-            filas.push([{ content: etiqueta, colSpan: 10, styles: { fillColor: [240, 240, 240], fontStyle: 'bold', halign: 'left' } }])
+            filas.push([{ content: etiqueta, colSpan: 9, styles: { fillColor: [240, 240, 240], fontStyle: 'bold', halign: 'left' } }])
           }
           filas.push([
             x.producto,
             f(x.par),
-            sumaObjetivo(x.linea_id, g.ids),
             f(x.inicial),
             n(x.entradas) ? f(x.entradas) : '—',
             celdaSumaZonas(x.linea_id, g.ids),
@@ -478,7 +477,7 @@ export default function HojaPage() {
         })
         autoTable(doc, {
           startY: 28,
-          head: [['Producto', 'Fijo', 'Objetivo', 'Inicial', 'Entradas', 'Final', 'Consumo', 'Ventas', 'Descuadre', 'Comentarios']],
+          head: [['Producto', 'Fijo', 'Inicial', 'Entradas', 'Final', 'Consumo', 'Ventas', 'Descuadre', 'Comentarios']],
           body: filas,
           styles: { fontSize: 6.5, cellPadding: 1.3 },
           headStyles: { fillColor: [230, 230, 230], textColor: 30, fontSize: 6.5 },
@@ -552,21 +551,6 @@ export default function HojaPage() {
     return { texto: alguno ? f(suma) : '—', heredado }
   }
   const celdaSumaZonas = (lineaId: number, ids: number[]) => sumaZonas(lineaId, ids).texto
-
-  const sumaObjetivo = (lineaId: number, ids: number[]) => {
-    const pc = conteoPorLinea.get(lineaId)
-    if (!pc) return ''
-    let suma = 0
-    let alguno = false
-    ids.forEach((id) => {
-      const v = pc.objetivos?.[String(id)]
-      if (v !== undefined && v > 0) {
-        suma += v
-        alguno = true
-      }
-    })
-    return alguno ? f(suma) : '—'
-  }
 
   const desgloseFinal = (lineaId: number) => {
     const pc = conteoPorLinea.get(lineaId)
@@ -859,7 +843,6 @@ export default function HojaPage() {
                   <tr>
                     <th>Producto</th>
                     <th>Fijo</th>
-                    <th>Objetivo aquí</th>
                     <th>Inicial</th>
                     <th>Entradas</th>
                     <th>Final</th>
@@ -877,13 +860,12 @@ export default function HojaPage() {
                       <Fragment key={x.linea_id}>
                         {cab && (
                           <tr className="stkh-p-sec">
-                            <td colSpan={10}>{cab}</td>
+                            <td colSpan={9}>{cab}</td>
                           </tr>
                         )}
                         <tr>
                           <td>{x.producto}</td>
                           <td>{f(x.par)}</td>
-                          <td>{sumaObjetivo(x.linea_id, g.ids)}</td>
                           <td>{f(x.inicial)}</td>
                           <td>{n(x.entradas) ? f(x.entradas) : '—'}</td>
                           <td className={sumaZonas(x.linea_id, g.ids).heredado ? 'stkh-p-hered' : ''}>
