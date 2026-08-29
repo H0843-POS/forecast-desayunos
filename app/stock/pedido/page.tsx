@@ -154,6 +154,19 @@ const CSS = `
   text-decoration:none;font-family:inherit}
 .stkp-acc .pri{background:var(--acc);border-color:var(--acc);color:#08111c}
 .stkp-acc button:disabled{opacity:.4}
+.stkp-in[data-cambiado="1"]{border-color:#e8c95a!important;box-shadow:0 0 0 1px #e8c95a}
+.stkp-pendbar{margin-bottom:9px;padding:9px 10px;border-radius:10px;background:#2a2410;
+  border:1px solid #6b5a1f;display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:8px}
+.stkp-pendbar>span{font-size:12.5px;color:#e8c95a;font-weight:600}
+.stkp-pendbtns{display:flex;gap:8px}
+.stkp-pend-aplicar{height:34px;padding:0 14px;border-radius:8px;border:1px solid var(--acc);
+  background:var(--acc);color:#08111c;font-size:12.5px;font-weight:700;cursor:pointer;
+  font-family:inherit}
+.stkp-pend-aplicar:disabled{opacity:.5}
+.stkp-pend-cancelar{height:34px;padding:0 12px;border-radius:8px;border:1px solid var(--line);
+  background:none;color:var(--dim);font-size:12.5px;cursor:pointer;font-family:inherit}
+.stkp-pend-err{width:100%;margin:2px 0 0;color:#f0b4b8;font-size:11.5px}
 `
 
 export default function PedidoPage() {
@@ -174,6 +187,7 @@ export default function PedidoPage() {
   const [remite, setRemite] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [envio, setEnvio] = useState<{ ok: boolean; msg: string } | null>(null)
+  const [resetKey, setResetKey] = useState(0)
   const cajaRef = useRef<HTMLInputElement>(null)
 
   const esHoy = fecha === hoyOperativo()
@@ -197,6 +211,7 @@ export default function PedidoPage() {
       setPara((v) => v || j?.config?.email_economato || '')
       setCopia((v) => v || j?.config?.email_copia || '')
       setRemite((v) => v || j?.config?.email_from || '')
+      setResetKey((k) => k + 1)
     } catch (e: any) {
       setFallo(e.message)
     } finally {
@@ -242,7 +257,13 @@ export default function PedidoPage() {
   }, [])
 
   useEffect(() => {
-    if (fecha) cargar(fecha)
+    if (fecha) {
+      if (Object.keys(pendientes).length) {
+        setPendientes({})
+        setErrorAplicar(null)
+      }
+      cargar(fecha)
+    }
   }, [fecha])
 
   const accion = async (body: any, recargar = true) => {
@@ -253,6 +274,79 @@ export default function PedidoPage() {
     })
     if (recargar) await cargar(fecha)
     return r.ok
+  }
+
+  type Pendiente =
+    | { tipo: 'linea'; productoId: number; valor: string }
+    | { tipo: 'recibir'; lineaId: number; recibido: string }
+  const [pendientes, setPendientes] = useState<Record<string, Pendiente>>({})
+  const [aplicandoCambios, setAplicandoCambios] = useState(false)
+  const [errorAplicar, setErrorAplicar] = useState<string | null>(null)
+
+  const marcarLinea = (productoId: number, actual: string, valor: string) => {
+    const clave = `linea:${productoId}`
+    setPendientes((s) => {
+      const n2 = { ...s }
+      if (Number(valor.replace(',', '.')) === Number(n(actual) ?? 0)) delete n2[clave]
+      else n2[clave] = { tipo: 'linea', productoId, valor }
+      return n2
+    })
+  }
+
+  const marcarRecibido = (lineaId: number, actual: string | null, valor: string) => {
+    const clave = `recibir:${lineaId}`
+    setPendientes((s) => {
+      const n2 = { ...s }
+      if (n(valor) === n(actual)) delete n2[clave]
+      else n2[clave] = { tipo: 'recibir', lineaId, recibido: valor }
+      return n2
+    })
+  }
+
+  const aplicarCambios = async () => {
+    const lista = Object.values(pendientes)
+    if (!lista.length || !d?.pedido) return
+    setAplicandoCambios(true)
+    setErrorAplicar(null)
+    const scrollPos = window.scrollY
+    try {
+      const resultados = await Promise.all(
+        lista.map((p) => {
+          if (p.tipo === 'linea') {
+            return fetch('/api/stock/pedido', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                accion: 'linea',
+                pedidoId: d.pedido!.id,
+                productoId: p.productoId,
+                unidades: p.valor,
+              }),
+            }).then((r) => r.ok)
+          }
+          const linea = d.lineas.find((l) => l.id === p.lineaId)
+          const pedPend = pendientes[`linea:${linea?.producto_id}`] as Extract<Pendiente, { tipo: 'linea' }> | undefined
+          const ped = Number((pedPend ? pedPend.valor : linea?.unidades || '0').replace(',', '.'))
+          const rec = n(p.recibido)
+          const est = rec === null ? null : rec <= 0 ? 'no_subido' : rec >= ped ? 'subido' : 'parcial'
+          return fetch('/api/stock/pedido', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ accion: 'recibir', lineaId: p.lineaId, recibido: p.recibido, estado: est }),
+          }).then((r) => r.ok)
+        })
+      )
+      if (resultados.some((ok) => !ok)) {
+        setErrorAplicar('Algún cambio no se pudo guardar — revisa los valores y vuelve a intentarlo.')
+      } else {
+        setPendientes({})
+      }
+      await cargar(fecha)
+      setResetKey((k) => k + 1)
+      requestAnimationFrame(() => window.scrollTo(0, scrollPos))
+    } finally {
+      setAplicandoCambios(false)
+    }
   }
 
   const mover = (dias: number) => {
@@ -536,32 +630,25 @@ export default function PedidoPage() {
                       </span>
                       <span className="stkp-cnt">
                         <input
+                          key={`ped-${x.id}-${resetKey}`}
                           className="stkp-in"
+                          data-cambiado={pendientes[`linea:${x.producto_id}`] ? '1' : '0'}
                           inputMode="decimal"
                           defaultValue={f(x.unidades)}
                           aria-label={`Pedido de ${x.producto}`}
-                          onBlur={(e) =>
-                            accion({
-                              accion: 'linea',
-                              pedidoId: d.pedido!.id,
-                              productoId: x.producto_id,
-                              unidades: e.target.value,
-                            })
-                          }
+                          onFocus={(e) => e.currentTarget.select()}
+                          onChange={(e) => marcarLinea(x.producto_id, x.unidades, e.target.value)}
                         />
                         <input
+                          key={`rec-${x.id}-${resetKey}`}
                           className="stkp-in rec"
+                          data-cambiado={pendientes[`recibir:${x.id}`] ? '1' : '0'}
                           inputMode="decimal"
                           defaultValue={f(x.recibido)}
                           placeholder="—"
                           aria-label={`Subido de ${x.producto}`}
-                          onBlur={(e) => {
-                            const rec = n(e.target.value)
-                            const ped = Number(x.unidades)
-                            const est =
-                              rec === null ? null : rec <= 0 ? 'no_subido' : rec >= ped ? 'subido' : 'parcial'
-                            accion({ accion: 'recibir', lineaId: x.id, recibido: e.target.value, estado: est })
-                          }}
+                          onFocus={(e) => e.currentTarget.select()}
+                          onChange={(e) => marcarRecibido(x.id, x.recibido, e.target.value)}
                         />
                         <select
                           className="stkp-sel"
@@ -650,6 +737,28 @@ export default function PedidoPage() {
       )}
 
       <div className="stkp-bar">
+        {Object.keys(pendientes).length > 0 && (
+          <div className="stkp-pendbar">
+            <span>{Object.keys(pendientes).length} cambio(s) sin guardar</span>
+            <div className="stkp-pendbtns">
+              <button
+                className="stkp-pend-cancelar"
+                disabled={aplicandoCambios}
+                onClick={() => {
+                  setPendientes({})
+                  setErrorAplicar(null)
+                  cargar(fecha)
+                }}
+              >
+                Descartar
+              </button>
+              <button className="stkp-pend-aplicar" disabled={aplicandoCambios} onClick={aplicarCambios}>
+                {aplicandoCambios ? 'Aplicando…' : 'Aplicar cambios'}
+              </button>
+            </div>
+            {errorAplicar && <p className="stkp-pend-err">{errorAplicar}</p>}
+          </div>
+        )}
         <div className="stkp-barrow">
           <span>
             <b>{d?.lineas.length || 0}</b> líneas · <b>{sinRecibir}</b> sin subir
