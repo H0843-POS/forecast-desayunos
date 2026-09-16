@@ -827,10 +827,11 @@ export default function AjustesPage() {
             onClick={async () => {
               if (
                 !confirm(
-                  `¿Aplicar los valores de «${actual?.nombre}» a la jornada de hoy?\n\n` +
-                    'Actualiza el par de referencia de hoy (que es el stock inicial de cada línea, ' +
-                    'salvo que la hayas fijado a mano) y el pedido sugerido, y da de alta los ' +
-                    'productos nuevos.'
+                  `¿Aplicar «${actual?.nombre}» a partir de hoy?\n\n` +
+                    'A partir de ahora, hoy usará este perfil en Contar y Hoja — se queda así aunque ' +
+                    'se recargue la pantalla, hasta que apliques otro perfil o cambie el calendario en ' +
+                    'un día futuro. Actualiza el par de referencia y el pedido sugerido, y da de alta ' +
+                    'los productos nuevos.'
                 )
               )
                 return
@@ -846,7 +847,7 @@ export default function AjustesPage() {
                 const x = j?.data
                 if (!r.ok || x?.error) throw new Error(x?.error || j?.error || 'no se pudo aplicar')
                 setAviso(
-                  `Jornada del ${x.fecha} actualizada con el perfil ${x.perfil}: ` +
+                  `Listo: hoy (${x.fecha}) usa el perfil ${x.perfil} — ` +
                     `${x.par_actualizado} stock inicial cambiado, ${x.anadidos} productos añadidos, ` +
                     `${x.quitados} quitados. ${x.total} referencias en la hoja.` +
                     (x.contados_fuera_de_zona
@@ -860,7 +861,7 @@ export default function AjustesPage() {
               }
             }}
           >
-            {aplicando ? 'Aplicando…' : 'Aplicar a hoy'}
+            {aplicando ? 'Aplicando…' : 'Aplicar esta temporada a partir de hoy'}
           </button>
         </span>
       </div>
