@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 
 type Linea = {
@@ -167,6 +167,33 @@ const CSS = `
 .stkp-pend-cancelar{height:34px;padding:0 12px;border-radius:8px;border:1px solid var(--line);
   background:none;color:var(--dim);font-size:12.5px;cursor:pointer;font-family:inherit}
 .stkp-pend-err{width:100%;margin:2px 0 0;color:#f0b4b8;font-size:11.5px}
+
+.stkp-print{display:none}
+@media print{
+  .stkp{height:auto!important;overflow:visible!important;background:#fff;color:#000;
+    font-family:Arial,Helvetica,sans-serif}
+  .stkp-onscreen{display:none!important}
+  .stkp-print{display:block!important}
+  .stkp-print *{box-sizing:border-box}
+  .stkp-p-cab{border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:12px}
+  .stkp-p-cab h1{font-size:11px;margin:0 0 3px;font-weight:400;letter-spacing:.03em;
+    text-transform:uppercase;color:#555}
+  .stkp-p-cab h2{font-size:18px;margin:0}
+  .stkp-p-meta{display:flex;justify-content:space-between;gap:16px;margin-bottom:16px;
+    font-size:11px;color:#333}
+  .stkp-p-meta div{flex:1}
+  .stkp-p-meta b{display:block;font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;
+    color:#888;margin-bottom:2px;font-weight:400}
+  .stkp-print table{width:100%;border-collapse:collapse;font-size:11px}
+  .stkp-print th,.stkp-print td{border-bottom:1px solid #ccc;padding:5px 6px;text-align:right}
+  .stkp-print th:first-child,.stkp-print td:first-child{text-align:left}
+  .stkp-print thead th{border-bottom:1.5px solid #000;font-size:9.5px;text-transform:uppercase;
+    color:#333}
+  .stkp-p-sec td{background:#f0f0f0!important;font-weight:700;text-align:left!important}
+  .stkp-p-firma{margin-top:40px;display:flex;justify-content:space-between;font-size:10.5px}
+  .stkp-p-firma div{width:42%;border-top:1px solid #000;padding-top:5px}
+  @page{margin:12mm 10mm}
+}
 `
 
 export default function PedidoPage() {
@@ -182,6 +209,11 @@ export default function PedidoPage() {
   const [abierto, setAbierto] = useState(false)
   const [ocupado, setOcupado] = useState(false)
   const [copiado, setCopiado] = useState(false)
+  const [quien, setQuien] = useState('')
+
+  useEffect(() => {
+    setQuien(localStorage.getItem('stk_quien') || '')
+  }, [])
   const [para, setPara] = useState('')
   const [copia, setCopia] = useState('')
   const [remite, setRemite] = useState('')
@@ -437,6 +469,7 @@ export default function PedidoPage() {
   return (
     <div className="stkp">
       <style>{CSS}</style>
+      <div className="stkp-onscreen">
 
       <div className="stkp-top">
         <div className="stkp-row1">
@@ -792,8 +825,77 @@ export default function PedidoPage() {
           >
             Abrir en mi correo
           </a>
+          <button onClick={() => window.print()} disabled={!d?.lineas.length}>
+            Imprimir hoja de pedido
+          </button>
         </div>
       </div>
+      </div>
+
+      {d && (
+        <div className="stkp-print">
+          <div className="stkp-p-cab">
+            <h1>Novotel &amp; Ibis Madrid · City Las Ventas</h1>
+            <h2>Hoja de pedido a economato</h2>
+          </div>
+          <div className="stkp-p-meta">
+            <div>
+              <b>Fecha</b>
+              {fecha}
+            </div>
+            <div>
+              <b>Origen</b>
+              Restauración
+            </div>
+            <div>
+              <b>Destino</b>
+              Economato{para ? ` (${para})` : ''}
+            </div>
+            <div>
+              <b>Solicitado por</b>
+              {quien || '__________'}
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th>Pedido</th>
+                <th>Subido</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(() => {
+                let sec: string | null | undefined = undefined
+                return d.lineas.map((x) => {
+                  const cab = x.categoria !== sec ? ((sec = x.categoria), x.categoria) : null
+                  return (
+                    <Fragment key={x.id}>
+                      {cab && (
+                        <tr className="stkp-p-sec">
+                          <td colSpan={3}>{cab}</td>
+                        </tr>
+                      )}
+                      <tr>
+                        <td>
+                          {x.producto}
+                          {x.unidad ? ` (${x.unidad})` : ''}
+                        </td>
+                        <td>{f(x.unidades)}</td>
+                        <td>{x.recibido !== null ? f(x.recibido) : ''}</td>
+                      </tr>
+                    </Fragment>
+                  )
+                })
+              })()}
+            </tbody>
+          </table>
+          <div className="stkp-p-firma">
+            <div>Solicitado por (Restauración)</div>
+            <div>Recibido en Economato</div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
