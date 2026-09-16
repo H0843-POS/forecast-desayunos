@@ -154,6 +154,9 @@ const CSS = `
   text-decoration:none;font-family:inherit}
 .stkp-acc .pri{background:var(--acc);border-color:var(--acc);color:#08111c}
 .stkp-acc button:disabled{opacity:.4}
+.stkp-destino{border:1px solid var(--line);border-radius:9px;background:var(--panel);
+  color:var(--txt);font-size:12.5px;font-weight:600;padding:9px 10px;cursor:pointer;
+  font-family:inherit}
 .stkp-in[data-cambiado="1"]{border-color:#e8c95a!important;box-shadow:0 0 0 1px #e8c95a}
 .stkp-pendbar{margin-bottom:9px;padding:9px 10px;border-radius:10px;background:#2a2410;
   border:1px solid #6b5a1f;display:flex;align-items:center;justify-content:space-between;
@@ -210,6 +213,7 @@ export default function PedidoPage() {
   const [ocupado, setOcupado] = useState(false)
   const [copiado, setCopiado] = useState(false)
   const [quien, setQuien] = useState('')
+  const [destino, setDestino] = useState('Restauración')
 
   useEffect(() => {
     setQuien(localStorage.getItem('stk_quien') || '')
@@ -825,6 +829,15 @@ export default function PedidoPage() {
           >
             Abrir en mi correo
           </a>
+          <select
+            className="stkp-destino"
+            value={destino}
+            onChange={(e) => setDestino(e.target.value)}
+            aria-label="Destino de la entrega"
+          >
+            <option value="Restauración">Destino: Restauración</option>
+            <option value="Eventos">Destino: Eventos</option>
+          </select>
           <button onClick={() => window.print()} disabled={!d?.lineas.length}>
             Imprimir hoja de pedido
           </button>
@@ -845,11 +858,11 @@ export default function PedidoPage() {
             </div>
             <div>
               <b>Origen</b>
-              Restauración
+              Economato{para ? ` (${para})` : ''}
             </div>
             <div>
               <b>Destino</b>
-              Economato{para ? ` (${para})` : ''}
+              {destino}
             </div>
             <div>
               <b>Solicitado por</b>
@@ -891,8 +904,8 @@ export default function PedidoPage() {
             </tbody>
           </table>
           <div className="stkp-p-firma">
-            <div>Solicitado por (Restauración)</div>
-            <div>Recibido en Economato</div>
+            <div>Entregado por Economato</div>
+            <div>Recibido en {destino}</div>
           </div>
         </div>
       )}
