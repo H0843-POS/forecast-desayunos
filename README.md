@@ -36,3 +36,21 @@ git push
 ```
 
 Vercel despliega automáticamente desde el repo `H0843-POS/forecast-desayunos`.
+
+## Módulo Horario restaurante (`/horario`)
+
+Protegido con contraseña (middleware + comprobación en cada ruta API).
+
+Variables de entorno nuevas en Vercel (Production y Preview):
+
+```
+HORARIO_PASSWORD=<mín. 8 caracteres>
+HORARIO_SESSION_SECRET=<cadena aleatoria de 32+ caracteres>
+SUPABASE_URL=<url del proyecto Supabase del hotel>   # ya existe para stock
+SUPABASE_SERVICE_KEY=<service_role key>             # ya existe
+```
+
+Base de datos: ejecutar `supabase_horario.sql` en el SQL Editor (idempotente).
+Crea las tablas `hr_*` con RLS activado sin políticas y carga turnos, festivos 2026-2027 y reglas de cobertura.
+
+Cambiar `HORARIO_PASSWORD` cierra todas las sesiones abiertas.
