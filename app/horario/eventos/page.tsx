@@ -113,7 +113,7 @@ function Eventos() {
           <p className="hr-muted" style={{ marginBottom: 8 }}>
             {sync?.configurado === false
               ? 'Falta la clave de football-data.org (FOOTBALL_DATA_TOKEN) en Vercel para traer los partidos solos.'
-              : <>Champions y LaLiga de Real Madrid, Atlético y Rayo, próximos 4 meses. Se actualiza solo cada mañana
+              : <>Champions y LaLiga de Real Madrid, Atlético, Rayo y Barcelona, próximos 4 meses. Se actualiza solo cada mañana
                 {sync?.ultima?.at ? ` · última vez ${new Date(sync.ultima.at).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })}` : ''}.</>}
           </p>
           {msg && <div className="hr-aviso aviso" style={{ marginBottom: 8 }}>{msg}</div>}

@@ -7,14 +7,18 @@ const API = 'https://api.football-data.org/v4'
 // Competiciones del plan gratuito que nos interesan
 const COMPETICIONES: Record<string, string> = { CL: 'Champions', PD: 'LaLiga' }
 
-// Equipos de Madrid (ids de football-data.org). El nombre sirve de red de
-// seguridad por si algún id cambiara.
+// Equipos que seguimos (ids de football-data.org). El nombre sirve de red de
+// seguridad por si algún id cambiara. Solo los de Madrid marcan "en Madrid".
 const EQUIPOS_MADRID = new Map<number, string>([
   [86, 'Real Madrid'],
   [78, 'Atlético'],
   [87, 'Rayo'],
 ])
+const OTROS_EQUIPOS = new Map<number, string>([
+  [81, 'Barcelona'],
+])
 const RE_MADRID = /real madrid|atl[eé]tico de madrid|atl[eé]tico madrid|rayo vallecano/i
+const RE_OTROS = /fc barcelona/i
 
 const DIAS_ADELANTE = 120
 
@@ -30,8 +34,11 @@ interface Partido {
 function esMadrid(t: Equipo): boolean {
   return EQUIPOS_MADRID.has(t.id) || RE_MADRID.test(`${t.name ?? ''} ${t.shortName ?? ''}`)
 }
+function seguido(t: Equipo): boolean {
+  return esMadrid(t) || OTROS_EQUIPOS.has(t.id) || RE_OTROS.test(t.name ?? '')
+}
 function nombre(t: Equipo): string {
-  return EQUIPOS_MADRID.get(t.id) ?? t.shortName ?? t.name ?? '¿?'
+  return EQUIPOS_MADRID.get(t.id) ?? OTROS_EQUIPOS.get(t.id) ?? t.shortName ?? t.name ?? '¿?'
 }
 
 // Fecha y hora en Madrid a partir de la hora UTC del partido
@@ -75,8 +82,9 @@ export async function sincronizarPartidos(): Promise<ResultadoSync> {
     const data = (await res.json()) as { matches?: Partido[] }
     for (const m of data.matches ?? []) {
       if (!m?.id || typeof m.utcDate !== 'string') continue
+      if (!seguido(m.homeTeam) && !seguido(m.awayTeam)) continue
+      // se juega en Madrid si el equipo de casa es de Madrid
       const local = esMadrid(m.homeTeam)
-      if (!local && !esMadrid(m.awayTeam)) continue
       if (['CANCELLED', 'POSTPONED', 'SUSPENDED'].includes(m.status)) continue
       const { fecha, hora } = enMadrid(m.utcDate)
       const ext = `fd:${m.id}`

@@ -20,15 +20,17 @@ import {
   iso,
   lunes as lunesDe,
   type Empleado,
+  type Evento,
+  type Extra,
   type Franja,
 } from '@/lib/horario/core'
 import { horasExtra, vistaDia } from '@/lib/horario/vista'
 import { useDatos, type AsigInput } from '../_lib/useDatos'
 import EditorCelda from '../_components/EditorCelda'
-import EditorDia from '../_components/EditorDia'
+import EditorDia, { TIPOS_EVENTO } from '../_components/EditorDia'
 import { OcupacionInfo } from '../_components/OcupacionInfo'
 
-type Abierto = null | { fecha: string; franja?: Franja; tipo: 'extra' | 'asignar' }
+type Abierto = null | { fecha: string; franja?: Franja; tipo: 'extra' | 'asignar' | 'evento' }
 
 function Semana() {
   const router = useRouter()
@@ -41,6 +43,7 @@ function Semana() {
   const [editando, setEditando] = useState<{ emp: Empleado; fecha: string } | null>(null)
   const [abierto, setAbierto] = useState<Abierto>(null)
   const [diaAbierto, setDiaAbierto] = useState<string | null>(null)
+  const [editItem, setEditItem] = useState<string | null>(null)
 
   const irSemana = (n: number) => router.push(`/horario/semana?d=${addDays(lunes, 7 * n)}`)
   const fmt = (f: string) => `${Number(f.slice(8))} ${MESES[Number(f.slice(5, 7)) - 1].toLowerCase()}`
@@ -167,9 +170,13 @@ function Semana() {
                     {fr === 'manana' && planificado && v.faltanCodigos.length > 0 && (
                       <div className="hr-pill mal" style={{ alignSelf: 'flex-start' }}>Sin cubrir: {v.faltanCodigos.join(', ')}</div>
                     )}
-                    {vf.eventos.map(ev => (
+                    {vf.eventos.map(ev => editItem === ev.id ? (
+                      <FormEvento key={ev.id} fecha={f} franja={fr} ev={ev} onCancel={() => setEditItem(null)}
+                        onSave={b => guardarRecurso('eventos', b).then(() => setEditItem(null))}
+                        onDelete={() => { if (confirm('¿Borrar este evento?')) borrarRecurso('eventos', 'id', ev.id).then(() => setEditItem(null)).catch(() => {}) }} />
+                    ) : (
                       <button key={ev.id} className="hr-evento hr-clic" style={{ border: 0, textAlign: 'left', font: 'inherit', fontSize: 12 }}
-                        onClick={() => setDiaAbierto(f)} title="Editar evento">
+                        onClick={() => setEditItem(ev.id)} title="Editar evento">
                         <span><b>{ev.hora ? corto(ev.hora) : ''}</b> {ev.pax != null ? `${ev.pax} pax` : ''} {ev.tipo ?? ''} {ev.nombre ? `· ${ev.nombre}` : ''}</span>
                         <span aria-hidden>✎</span>
                       </button>
@@ -198,15 +205,22 @@ function Semana() {
                         También: {vf.apoyo.map(a => `${a.emp.nombre} (${a.label})`).join(', ')}
                       </div>
                     )}
-                    {vf.extras.map(x => (
-                      <div key={x.id} className="hr-extra">
-                        <span><b>{x.cantidad} {x.origen}</b> {corto(x.inicio)}-{corto(x.fin)} · {MOTIVO_LABEL[x.motivo].toLowerCase()}{x.nota ? ` · ${x.nota}` : ''}</span>
-                        <button className="hr-x" onClick={() => borrarRecurso('extras', 'id', x.id).catch(() => {})} aria-label="Quitar extra">✕</button>
-                      </div>
+                    {vf.extras.map(x => editItem === x.id ? (
+                      <FormExtra key={x.id} fecha={f} franja={fr} extra={x} onCancel={() => setEditItem(null)}
+                        onSave={b => guardarRecurso('extras', b).then(() => setEditItem(null))}
+                        onDelete={() => { if (confirm('¿Quitar este extra?')) borrarRecurso('extras', 'id', x.id).then(() => setEditItem(null)).catch(() => {}) }} />
+                    ) : (
+                      <button key={x.id} className="hr-extra hr-clic" style={{ border: 0, textAlign: 'left', font: 'inherit', fontSize: 12 }}
+                        onClick={() => setEditItem(x.id)} title="Editar extra (nombre, horario, cantidad…)">
+                        <span><b>{x.cantidad > 1 ? `${x.cantidad} ` : ''}{x.origen}</b> {corto(x.inicio)}-{corto(x.fin)} · {MOTIVO_LABEL[x.motivo].toLowerCase()}{x.nota ? ` · ${x.nota}` : ''}</span>
+                        <span aria-hidden>✎</span>
+                      </button>
                     ))}
 
                     {abierto?.fecha === f && abierto.franja === fr ? (
-                      abierto.tipo === 'extra' ? (
+                      abierto.tipo === 'evento' ? (
+                        <FormEvento fecha={f} franja={fr} onCancel={() => setAbierto(null)} onSave={b => guardarRecurso('eventos', b).then(() => setAbierto(null))} />
+                      ) : abierto.tipo === 'extra' ? (
                         <FormExtra fecha={f} franja={fr} onCancel={() => setAbierto(null)} onSave={b => guardarRecurso('extras', b).then(() => setAbierto(null))} />
                       ) : (
                         <FormAsignar
@@ -221,7 +235,7 @@ function Semana() {
                       <div className="hr-addline">
                         <button className="hr-link" onClick={() => setAbierto({ fecha: f, franja: fr, tipo: 'asignar' })}>+ persona</button>
                         <button className="hr-link" onClick={() => setAbierto({ fecha: f, franja: fr, tipo: 'extra' })}>+ extra</button>
-                        <button className="hr-link" onClick={() => setDiaAbierto(f)}>+ evento</button>
+                        <button className="hr-link" onClick={() => setAbierto({ fecha: f, franja: fr, tipo: 'evento' })}>+ evento</button>
                       </div>
                     )}
                     <textarea
@@ -298,25 +312,64 @@ function Semana() {
 
 const HORAS_DEFECTO: Record<Franja, [string, string]> = { manana: ['09:00', '13:00'], mediodia: ['13:00', '17:00'], tarde: ['18:00', '24:00'] }
 
-function FormExtra({ fecha, franja, onSave, onCancel }: { fecha: string; franja: Franja; onSave: (b: unknown) => Promise<unknown>; onCancel: () => void }) {
-  const [cantidad, setCantidad] = useState('1')
-  const [inicio, setInicio] = useState(HORAS_DEFECTO[franja][0])
-  const [fin, setFin] = useState(HORAS_DEFECTO[franja][1] === '24:00' ? '00:00' : HORAS_DEFECTO[franja][1])
-  const [motivo, setMotivo] = useState<string>('refuerzo')
-  const [origen, setOrigen] = useState('ETT')
-  const [nota, setNota] = useState('')
+function FormExtra({ fecha, franja, extra, onSave, onCancel, onDelete }: {
+  fecha: string; franja: Franja; extra?: Extra; onSave: (b: unknown) => Promise<unknown>; onCancel: () => void; onDelete?: () => void
+}) {
+  const [cantidad, setCantidad] = useState(String(extra?.cantidad ?? 1))
+  const [inicio, setInicio] = useState(extra ? corto(extra.inicio) : HORAS_DEFECTO[franja][0])
+  const [fin, setFin] = useState(extra ? corto(extra.fin) : HORAS_DEFECTO[franja][1] === '24:00' ? '00:00' : HORAS_DEFECTO[franja][1])
+  const [motivo, setMotivo] = useState<string>(extra?.motivo ?? 'refuerzo')
+  const [origen, setOrigen] = useState(extra?.origen ?? 'ETT')
+  const [nota, setNota] = useState(extra?.nota ?? '')
   return (
-    <form className="hr-addline" onSubmit={e => { e.preventDefault(); onSave({ fecha, cantidad, inicio, fin, motivo, origen, nota }).catch(() => {}) }}>
-      <input className="hr-input" inputMode="numeric" value={cantidad} onChange={e => setCantidad(e.target.value)} style={{ width: 44 }} aria-label="Cantidad" />
-      <input className="hr-input" value={origen} onChange={e => setOrigen(e.target.value)} style={{ width: 60 }} maxLength={40} aria-label="Origen" />
-      <input className="hr-input" type="time" value={inicio} onChange={e => setInicio(e.target.value)} style={{ width: 92 }} aria-label="Entrada" />
-      <input className="hr-input" type="time" value={fin} onChange={e => setFin(e.target.value)} style={{ width: 92 }} aria-label="Salida" />
-      <select className="hr-select" value={motivo} onChange={e => setMotivo(e.target.value)} aria-label="Motivo">
-        {MOTIVOS.map(m => <option key={m} value={m}>{MOTIVO_LABEL[m]}</option>)}
-      </select>
-      <input className="hr-input" placeholder="nota" value={nota} onChange={e => setNota(e.target.value)} style={{ width: 100 }} maxLength={200} />
-      <button className="hr-btn sm pri">Añadir</button>
-      <button type="button" className="hr-btn sm" onClick={onCancel}>✕</button>
+    <form className="hr-form-in" onSubmit={e => { e.preventDefault(); onSave({ ...(extra ? { id: extra.id } : {}), fecha, cantidad, inicio, fin, motivo, origen, nota }).catch(() => {}) }}>
+      <div className="hr-addline">
+        <label className="hr-lab">Cuántos<input className="hr-input" inputMode="numeric" value={cantidad} onChange={e => setCantidad(e.target.value.replace(/\D/g, ''))} style={{ width: 52 }} /></label>
+        <label className="hr-lab" style={{ flex: 1, minWidth: 110 }}>Nombre o ETT<input className="hr-input" value={origen} onChange={e => setOrigen(e.target.value)} maxLength={40} placeholder="ETT, Dani, Nacho…" /></label>
+      </div>
+      <div className="hr-addline">
+        <label className="hr-lab">Entra<input className="hr-input" type="time" value={inicio} onChange={e => setInicio(e.target.value)} style={{ width: 96 }} /></label>
+        <label className="hr-lab">Sale<input className="hr-input" type="time" value={fin} onChange={e => setFin(e.target.value)} style={{ width: 96 }} /></label>
+        <label className="hr-lab">Motivo
+          <select className="hr-select" value={motivo} onChange={e => setMotivo(e.target.value)}>
+            {MOTIVOS.map(m => <option key={m} value={m}>{MOTIVO_LABEL[m]}</option>)}
+          </select>
+        </label>
+      </div>
+      <input className="hr-input" placeholder="Nota (opcional)" value={nota} onChange={e => setNota(e.target.value)} maxLength={200} />
+      <div className="hr-addline">
+        <button className="hr-btn sm pri" disabled={!origen.trim() || !cantidad || !inicio || !fin}>{extra ? 'Guardar' : 'Añadir'}</button>
+        <button type="button" className="hr-btn sm" onClick={onCancel}>Cancelar</button>
+        {onDelete && <button type="button" className="hr-btn sm peligro" onClick={onDelete} style={{ marginLeft: 'auto' }}>Quitar</button>}
+      </div>
+    </form>
+  )
+}
+
+function FormEvento({ fecha, franja, ev, onSave, onCancel, onDelete }: {
+  fecha: string; franja: Franja; ev?: Evento; onSave: (b: unknown) => Promise<unknown>; onCancel: () => void; onDelete?: () => void
+}) {
+  const [hora, setHora] = useState(ev?.hora ? corto(ev.hora) : '')
+  const [nombre, setNombre] = useState(ev?.nombre ?? '')
+  const [pax, setPax] = useState(ev?.pax != null ? String(ev.pax) : '')
+  const [tipo, setTipo] = useState(ev?.tipo ?? '')
+  const [nota, setNota] = useState(ev?.nota ?? '')
+  return (
+    <form className="hr-form-in" style={{ background: '#eef3ff' }}
+      onSubmit={e => { e.preventDefault(); onSave({ ...(ev ? { id: ev.id } : {}), fecha, hora: hora || null, franja: hora ? null : (ev?.franja ?? franja), nombre, pax: pax || null, tipo, nota }).catch(() => {}) }}>
+      <div className="hr-addline">
+        <label className="hr-lab">Hora<input className="hr-input" type="time" value={hora} onChange={e => setHora(e.target.value)} style={{ width: 96 }} /></label>
+        <label className="hr-lab">Pax<input className="hr-input" inputMode="numeric" value={pax} onChange={e => setPax(e.target.value.replace(/\D/g, ''))} style={{ width: 60 }} /></label>
+        <label className="hr-lab" style={{ flex: 1, minWidth: 100 }}>Tipo<input className="hr-input" list="hr-tipos-evento" value={tipo} onChange={e => setTipo(e.target.value)} maxLength={40} /></label>
+      </div>
+      <label className="hr-lab">Empresa / cliente<input className="hr-input" value={nombre} onChange={e => setNombre(e.target.value)} maxLength={80} autoFocus={!ev} /></label>
+      <input className="hr-input" placeholder="Nota (opcional)" value={nota} onChange={e => setNota(e.target.value)} maxLength={200} />
+      <datalist id="hr-tipos-evento">{TIPOS_EVENTO.map(t => <option key={t} value={t} />)}</datalist>
+      <div className="hr-addline">
+        <button className="hr-btn sm pri" disabled={!hora && !nombre && !tipo && !pax}>{ev ? 'Guardar' : 'Añadir'}</button>
+        <button type="button" className="hr-btn sm" onClick={onCancel}>Cancelar</button>
+        {onDelete && <button type="button" className="hr-btn sm peligro" onClick={onDelete} style={{ marginLeft: 'auto' }}>Borrar</button>}
+      </div>
     </form>
   )
 }
