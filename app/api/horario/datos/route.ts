@@ -39,7 +39,7 @@ function ocupacionDesdeForecasts(rows: ForecastRow[], desde: string, hasta: stri
     }
     porFecha.forEach((val, f) => {
       if (f < desde || f > hasta || out[f]) return
-      out[f] = { personas: val.p, desayunos: val.b, fuente: 'forecast' }
+      out[f] = { personas: val.p, desayunos: val.b, fuente: 'forecast', cargado: row.created_at }
     })
   }
   return out

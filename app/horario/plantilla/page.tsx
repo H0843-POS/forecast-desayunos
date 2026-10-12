@@ -4,6 +4,11 @@ import { api } from '@/lib/horario/client'
 import { addDays, fmtH, iso, type Empleado, type Turno } from '@/lib/horario/core'
 import { useDatos } from '../_lib/useDatos'
 
+interface Libres {
+  libres_por_semana: number
+  empleados: { empleado_id: string; nombre: string; activo: boolean; pendientes: { semana: number; lunes: string; faltan: number }[]; total: number }[]
+}
+
 interface Bolsa {
   anio: number
   empleados: { empleado_id: string; nombre: string; activo: boolean; inicial: number; trabajados: { fecha: string; nombre: string }[]; devueltos: string[]; saldo: number }[]
@@ -15,9 +20,13 @@ export default function Plantilla() {
   const { datos, error, setError, guardando, guardarRecurso } = useDatos(hoy, hoy, hoy, addDays(hoy, 1))
   const [anio, setAnio] = useState(new Date().getFullYear())
   const [bolsa, setBolsa] = useState<Bolsa | null>(null)
+  const [libres, setLibres] = useState<Libres | null>(null)
 
   const cargarBolsa = useCallback(async () => {
-    try { setBolsa(await api.get<Bolsa>(`/api/horario/bolsa?anio=${anio}`)) } catch (e) { setError(e instanceof Error ? e.message : 'Error') }
+    try {
+      const [b, l] = await Promise.all([api.get<Bolsa>(`/api/horario/bolsa?anio=${anio}`), api.get<Libres>(`/api/horario/libres?anio=${anio}`)])
+      setBolsa(b); setLibres(l)
+    } catch (e) { setError(e instanceof Error ? e.message : 'Error') }
   }, [anio, setError])
   useEffect(() => { cargarBolsa() }, [cargarBolsa])
 
@@ -38,7 +47,7 @@ export default function Plantilla() {
               Los ETT sin nombre se apuntan como extras en la hoja semanal. El orden decide la fila en el horario.
             </p>
             <table className="hr-tabla">
-              <thead><tr><th>Orden</th><th>Nombre</th><th>Tipo</th><th>Horas/semana</th><th>Festivos debidos al empezar el año</th><th>Estado</th><th /></tr></thead>
+              <thead><tr><th>Orden</th><th>Nombre</th><th>Tipo</th><th>Horas/semana</th><th>Festivos debidos al empezar el año</th><th>Notas</th><th>Estado</th><th /></tr></thead>
               <tbody>
                 {datos.empleados.map(e => <FilaEmpleado key={e.id + String(e.activo)} e={e} onSave={guardarEmp} />)}
                 <FilaEmpleado key={`nuevo-${datos.empleados.length}`} onSave={guardarEmp} />
@@ -59,6 +68,30 @@ export default function Plantilla() {
                 <FilaTurno key={`nuevo-${datos.turnos.length}`} onSave={b => guardarRecurso('turnos', b).catch(() => {})} />
               </tbody>
             </table>
+          </div>
+
+          <div className="hr-card">
+            <h2>Libres que se deben · {anio}</h2>
+            <p className="hr-muted" style={{ marginBottom: 8 }}>
+              Cada semana completa le corresponden {libres?.libres_por_semana ?? 2} libres (L + nº de semana). Si quitáis uno, aparece aquí;
+              para devolverlo, escribe ese código (p. ej. L40) el día que se lo deis.
+            </p>
+            {libres && libres.empleados.every(x => x.total === 0)
+              ? <p className="hr-muted">No se debe ningún libre.</p>
+              : (
+                <table className="hr-tabla">
+                  <thead><tr><th>Empleado</th><th>Se le deben</th><th>Total</th></tr></thead>
+                  <tbody>
+                    {libres?.empleados.filter(x => x.total > 0).map(x => (
+                      <tr key={x.empleado_id}>
+                        <td>{x.nombre}</td>
+                        <td style={{ fontFamily: 'var(--mono)' }}>{x.pendientes.map(p => `L${p.semana}${p.faltan > 1 ? ` ×${p.faltan}` : ''}`).join(', ')}</td>
+                        <td><span className="hr-pill warn">{x.total}</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
           </div>
 
           <div className="hr-card">
@@ -98,10 +131,11 @@ function FilaEmpleado({ e, onSave }: { e?: Empleado; onSave: (e: Partial<Emplead
   const [horas, setHoras] = useState(e?.horas_contrato != null ? String(e.horas_contrato) : '')
   const [orden, setOrden] = useState(String(e?.orden ?? ''))
   const [saldo, setSaldo] = useState(String(e?.saldo_festivos_inicial ?? '0'))
+  const [notas, setNotas] = useState(e?.notas ?? '')
   const nuevo = !e
   const cambiado = nuevo
     ? !!nombre.trim()
-    : nombre !== e.nombre || tipo !== e.tipo || horas !== (e.horas_contrato != null ? String(e.horas_contrato) : '') || orden !== String(e.orden) || saldo !== String(e.saldo_festivos_inicial)
+    : nombre !== e.nombre || tipo !== e.tipo || horas !== (e.horas_contrato != null ? String(e.horas_contrato) : '') || orden !== String(e.orden) || saldo !== String(e.saldo_festivos_inicial) || notas !== (e.notas ?? '')
 
   function guardar(activo = e?.activo ?? true) {
     onSave({
@@ -110,9 +144,10 @@ function FilaEmpleado({ e, onSave }: { e?: Empleado; onSave: (e: Partial<Emplead
       horas_contrato: tipo === 'plantilla' && horas !== '' ? Number(horas.replace(',', '.')) : null,
       orden: orden === '' ? 0 : Number(orden),
       saldo_festivos_inicial: saldo === '' ? 0 : Number(saldo.replace(',', '.')),
+      notas: notas.trim() || null,
       activo,
     })
-    if (nuevo) { setNombre(''); setHoras(''); setOrden(''); setSaldo('0') }
+    if (nuevo) { setNombre(''); setHoras(''); setOrden(''); setSaldo('0'); setNotas('') }
   }
 
   return (
@@ -135,6 +170,7 @@ function FilaEmpleado({ e, onSave }: { e?: Empleado; onSave: (e: Partial<Emplead
           : <span className="hr-muted">—</span>}
       </td>
       <td><input className="hr-input" style={{ width: 64 }} inputMode="decimal" value={saldo} onChange={x => setSaldo(x.target.value)} disabled={tipo !== 'plantilla'} /></td>
+      <td><input className="hr-input" style={{ width: 200 }} maxLength={500} value={notas} onChange={x => setNotas(x.target.value)} placeholder="Le debemos…" title={notas} /></td>
       <td>{e ? (e.activo ? <span className="hr-pill ok">Activo</span> : <span className="hr-pill">De baja</span>) : ''}</td>
       <td style={{ whiteSpace: 'nowrap' }}>
         <button className="hr-btn sm pri" disabled={!cambiado || !nombre.trim()} onClick={() => guardar()}>{nuevo ? 'Añadir' : 'Guardar'}</button>

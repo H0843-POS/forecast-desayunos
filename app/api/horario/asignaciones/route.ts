@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { db } from '@/lib/horario/db'
 import { dbCheck, handler, leerJson, ok } from '@/lib/horario/http'
 import * as v from '@/lib/horario/validate'
-import { describir, turnosMap, type Asignacion, type TipoAsig, type Turno } from '@/lib/horario/core'
+import { describir, lunes, turnosMap, type Asignacion, type TipoAsig, type Turno } from '@/lib/horario/core'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,6 +21,12 @@ function parseItem(raw: unknown): { empleado_id: string; fecha: string; fila: As
     empleado_id, fecha, tipo,
     turno: null, inicio: null, fin: null, inicio2: null, fin2: null, horas: null,
     nota: v.textoOpt(o.nota, 'nota', 200),
+    libre_de: null,
+  }
+  if (tipo === 'L' && o.libre_de) {
+    // siempre el lunes de esa semana; si es la misma semana del día, no hace falta guardarlo
+    const l = lunes(v.fecha(o.libre_de, 'libre_de'))
+    fila.libre_de = l === lunes(fecha) ? null : l
   }
   if (tipo === 'T') {
     fila.turno = o.turno ? v.codigo(o.turno, 'turno') : null

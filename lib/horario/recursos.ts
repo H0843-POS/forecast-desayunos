@@ -31,6 +31,7 @@ export const RECURSOS: Record<string, Recurso> = {
       saldo_festivos_inicial: v.numeroOpt(o.saldo_festivos_inicial, 'saldo_festivos_inicial', -50, 50) ?? 0,
       orden: v.enteroOpt(o.orden, 'orden', 0, 9999) ?? 0,
       activo: o.activo === undefined ? true : v.bool(o.activo, 'activo'),
+      ...('notas' in o ? { notas: v.textoOpt(o.notas, 'notas', 500) } : {}),
     }),
   },
   extras: {
@@ -80,7 +81,9 @@ export const RECURSOS: Record<string, Recurso> = {
       fecha: v.fecha(o.fecha),
       hora: v.horaOpt(o.hora, 'hora'),
       categoria: v.uno(o.categoria ?? 'futbol', 'categoria', ['futbol', 'concierto', 'feria', 'otro'] as const),
-      descripcion: v.texto(o.descripcion, 'descripcion', 80),
+      descripcion: v.texto(o.descripcion, 'descripcion', 120),
+      competicion: v.textoOpt(o.competicion, 'competicion', 40),
+      en_madrid: o.en_madrid === undefined ? false : v.bool(o.en_madrid, 'en_madrid'),
     }),
   },
   festivos: {

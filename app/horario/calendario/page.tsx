@@ -6,7 +6,6 @@ import {
   FRANJAS,
   FRANJA_LABEL,
   addDays,
-  corto,
   diaSemana,
   iso,
   type ConfigCobertura,
@@ -18,7 +17,7 @@ const hoy = iso(new Date())
 const AMBITO: Record<Festivo['ambito'], string> = { nacional: 'Nacional', autonomico: 'Comunidad de Madrid', local: 'Madrid capital' }
 
 export default function Calendario() {
-  const { datos, error, setError, guardando, guardarRecurso, borrarRecurso } = useDatos(hoy, addDays(hoy, 74), hoy, addDays(hoy, 74))
+  const { datos, error, setError, guardando, guardarRecurso, borrarRecurso } = useDatos(hoy, hoy, hoy, addDays(hoy, 1))
   const [anio, setAnio] = useState(new Date().getFullYear())
   const [festivos, setFestivos] = useState<Festivo[]>([])
 
@@ -29,7 +28,7 @@ export default function Calendario() {
 
   return (
     <div className="hr-page">
-      <div className="hr-bar"><h1>Festivos, eventos de la ciudad y reglas</h1>{guardando && <span className="hr-pill">Guardando…</span>}</div>
+      <div className="hr-bar"><h1>Festivos y reglas de cobertura</h1>{guardando && <span className="hr-pill">Guardando…</span>}</div>
       {error && <div className="hr-error">{error} <button className="hr-link" onClick={() => setError('')}>cerrar</button></div>}
       <div className="hr-cols">
         <div className="hr-card">
@@ -60,23 +59,6 @@ export default function Calendario() {
           </p>
         </div>
 
-        <div className="hr-card">
-          <h2>Eventos de la ciudad · próximas 10 semanas</h2>
-          <p className="hr-muted" style={{ marginBottom: 8 }}>Partidos, conciertos, ferias… Salen en el horario mensual y en la hoja semanal.</p>
-          <table className="hr-tabla">
-            <tbody>
-              {datos?.ciudad.map(c => (
-                <tr key={c.id}>
-                  <td style={{ fontFamily: 'var(--mono)', whiteSpace: 'nowrap' }}>{DIAS_CORTO[diaSemana(c.fecha)]} {c.fecha.slice(8)}/{c.fecha.slice(5, 7)} {c.hora ? corto(c.hora) : ''}</td>
-                  <td>{c.categoria === 'futbol' ? '⚽ ' : ''}{c.descripcion}</td>
-                  <td><button className="hr-x" onClick={() => borrarRecurso('ciudad', 'id', c.id).catch(() => {})} aria-label="Quitar">✕</button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <FormCiudad onSave={b => guardarRecurso('ciudad', b)} />
-        </div>
-
         {datos && <Reglas key={JSON.stringify(datos.config)} cfg={datos.config} codigos={datos.turnos.map(t => t.codigo)} onSave={b => guardarRecurso('config', b)} />}
       </div>
     </div>
@@ -95,24 +77,6 @@ function FormFestivo({ onSave }: { onSave: (b: unknown) => Promise<unknown> }) {
         <option value="nacional">Nacional</option><option value="autonomico">Comunidad</option><option value="local">Local</option>
       </select>
       <button className="hr-btn sm pri" disabled={!fecha || !nombre.trim()}>Añadir</button>
-    </form>
-  )
-}
-
-function FormCiudad({ onSave }: { onSave: (b: unknown) => Promise<unknown> }) {
-  const [fecha, setFecha] = useState('')
-  const [hora, setHora] = useState('')
-  const [descripcion, setDescripcion] = useState('')
-  const [categoria, setCategoria] = useState('futbol')
-  return (
-    <form className="hr-addline" style={{ marginTop: 10 }} onSubmit={e => { e.preventDefault(); onSave({ fecha, hora: hora || null, descripcion, categoria }).then(() => { setDescripcion(''); setHora('') }).catch(() => {}) }}>
-      <input className="hr-input" type="date" value={fecha} onChange={e => setFecha(e.target.value)} aria-label="Fecha" />
-      <input className="hr-input" type="time" value={hora} onChange={e => setHora(e.target.value)} aria-label="Hora" />
-      <input className="hr-input" placeholder="Atleti - Real Madrid" value={descripcion} onChange={e => setDescripcion(e.target.value)} maxLength={80} />
-      <select className="hr-select" value={categoria} onChange={e => setCategoria(e.target.value)} aria-label="Tipo">
-        <option value="futbol">Fútbol</option><option value="concierto">Concierto</option><option value="feria">Feria</option><option value="otro">Otro</option>
-      </select>
-      <button className="hr-btn sm pri" disabled={!fecha || !descripcion.trim()}>Añadir</button>
     </form>
   )
 }

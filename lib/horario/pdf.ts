@@ -34,6 +34,13 @@ interface Derivados {
   planificados: Set<string>
 }
 
+function fuenteOcupacion(fechas: string[], datos: DatosHorario): string {
+  const ultima = fechas.map(f => datos.ocupacion[f]?.cargado).filter(Boolean).sort().pop()
+  return ultima
+    ? `Ocupación: forecast del ${new Date(ultima).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`
+    : 'Ocupación: sin forecast'
+}
+
 async function nuevoDoc(orientation: 'portrait' | 'landscape'): Promise<JsPDF> {
   const { jsPDF } = await import('jspdf')
   return new jsPDF({ orientation, unit: 'mm', format: 'a4' })
@@ -58,7 +65,7 @@ export async function pdfMensual(mes: string, fechas: string[], datos: DatosHora
   doc.setFontSize(8)
   doc.setTextColor(110)
   doc.text('Novotel · Ibis Madrid City Las Ventas', W - M, 8.5, { align: 'right' })
-  doc.text(`Impreso ${new Date().toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })}`, W - M, 12, { align: 'right' })
+  doc.text(`Impreso ${new Date().toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })} · ${fuenteOcupacion(fechas, datos)}`, W - M, 12, { align: 'right' })
   doc.setTextColor(0)
 
   const emps = d.visibles
@@ -174,7 +181,7 @@ export async function pdfMensual(mes: string, fechas: string[], datos: DatosHora
   doc.text(AUSENCIAS.map(a => `${a.tipo} ${a.label.toLowerCase()}`).join(' · ') + ' · * horario distinto del habitual', M, yL + 4.5)
 
   const fes = fechas.filter(f => d.festivos.has(f)).map(f => `${Number(f.slice(8))} ${d.festivos.get(f)!.nombre}`)
-  const ciudad = datos.ciudad.filter(c => fechas.includes(c.fecha)).map(c => `${Number(c.fecha.slice(8))} ${c.descripcion}${c.hora ? ' ' + c.hora : ''}`)
+  const ciudad = datos.ciudad.filter(c => fechas.includes(c.fecha)).map(c => `${Number(c.fecha.slice(8))} ${c.descripcion}${c.competicion ? ` (${c.competicion})` : ''}${c.hora ? ' ' + corto(c.hora) : ''}${c.en_madrid ? ' en Madrid' : ''}`)
   doc.setTextColor(110)
   let yy = yL + 8.5
   if (fes.length) { doc.text(doc.splitTextToSize(`Festivos: ${fes.join(' · ')}`, W - 2 * M), M, yy); yy += 3.6 }
@@ -207,7 +214,7 @@ export async function pdfSemanal(lunes: string, fechas: string[], datos: DatosHo
   doc.setFontSize(7.5)
   doc.setTextColor(110)
   doc.text('Restaurante · Novotel · Ibis Madrid City Las Ventas', W - M, 7.5, { align: 'right' })
-  doc.text(`Impreso ${new Date().toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })}`, W - M, 11, { align: 'right' })
+  doc.text(`Impreso ${new Date().toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })} · ${fuenteOcupacion(fechas, datos)}`, W - M, 11, { align: 'right' })
   doc.setTextColor(0)
 
   let ettPersonas = 0
@@ -240,7 +247,7 @@ export async function pdfSemanal(lunes: string, fechas: string[], datos: DatosHo
     if (fes) { doc.setTextColor(163, 34, 27); doc.text(doc.splitTextToSize(fes.nombre, leftW - 3).slice(0, 2), M + 2, yl); yl += 2.6 * Math.min(2, doc.splitTextToSize(fes.nombre, leftW - 3).length) }
     doc.setTextColor(45, 79, 212)
     for (const c of datos.ciudad.filter(c => c.fecha === f).slice(0, 2)) {
-      const t = doc.splitTextToSize(`${c.hora ? c.hora + ' ' : ''}${c.descripcion}`, leftW - 3).slice(0, 2)
+      const t = doc.splitTextToSize(`${c.hora ? corto(c.hora) + ' ' : ''}${c.descripcion}${c.en_madrid ? ' (Madrid)' : ''}`, leftW - 3).slice(0, 2)
       if (yl + 2.6 * t.length > y0 + blockH - 1) break
       doc.text(t, M + 2, yl); yl += 2.6 * t.length
     }

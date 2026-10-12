@@ -78,7 +78,7 @@ export function useDatos(visibleDesde: string, visibleHasta: string, cargaDesde:
           nuevas.push({
             empleado_id: i.empleado_id, fecha: i.fecha, tipo: i.tipo,
             turno: i.turno ?? null, inicio: i.inicio ?? null, fin: i.fin ?? null,
-            inicio2: i.inicio2 ?? null, fin2: i.fin2 ?? null, horas: i.horas ?? null, nota: i.nota ?? null,
+            inicio2: i.inicio2 ?? null, fin2: i.fin2 ?? null, horas: i.horas ?? null, nota: i.nota ?? null, libre_de: i.libre_de ?? null,
           })
         })
         return { ...prev, asignaciones: [...resto, ...nuevas] }

@@ -25,8 +25,10 @@ import {
 import { horasExtra, vistaDia } from '@/lib/horario/vista'
 import { useDatos, type AsigInput } from '../_lib/useDatos'
 import EditorCelda from '../_components/EditorCelda'
+import EditorDia from '../_components/EditorDia'
+import { OcupacionInfo } from '../_components/OcupacionInfo'
 
-type Abierto = null | { fecha: string; franja?: Franja; tipo: 'evento' | 'extra' | 'asignar' | 'ciudad' }
+type Abierto = null | { fecha: string; franja?: Franja; tipo: 'extra' | 'asignar' }
 
 function Semana() {
   const router = useRouter()
@@ -38,6 +40,7 @@ function Semana() {
     useDatos(lunes, domingo, addDays(lunes, -7), addDays(lunes, 13))
   const [editando, setEditando] = useState<{ emp: Empleado; fecha: string } | null>(null)
   const [abierto, setAbierto] = useState<Abierto>(null)
+  const [diaAbierto, setDiaAbierto] = useState<string | null>(null)
 
   const irSemana = (n: number) => router.push(`/horario/semana?d=${addDays(lunes, 7 * n)}`)
   const fmt = (f: string) => `${Number(f.slice(8))} ${MESES[Number(f.slice(5, 7)) - 1].toLowerCase()}`
@@ -67,7 +70,7 @@ function Semana() {
         if (m?.get(f)) continue
         const prev = m?.get(addDays(f, -7))
         if (!prev) continue
-        items.push({ ...prev, id: undefined, fecha: f })
+        items.push({ ...prev, id: undefined, fecha: f, libre_de: null })
       }
     }
     if (!items.length) { setError('No hay huecos que rellenar desde la semana anterior'); return }
@@ -91,6 +94,7 @@ function Semana() {
         <h1>Semana {fmt(lunes)} – {fmt(domingo)}</h1>
         <button className="hr-btn" onClick={() => irSemana(1)} aria-label="Semana siguiente">→</button>
         {guardando && <span className="hr-pill">Guardando…</span>}
+        <OcupacionInfo fechas={d.fechas} ocupacion={datos.ocupacion} />
         <span className="hr-pill warn">Extras: {resumenExtras.personas} pers. · {fmtH(resumenExtras.horas)} h</span>
         <div style={{ flex: 1 }} />
         <button className="hr-btn" onClick={copiarSemanaAnterior}>Rellenar huecos con la semana anterior</button>
@@ -129,14 +133,12 @@ function Semana() {
                 </label>
                 {oc?.desayunos != null && <div className="hr-muted" style={{ fontFamily: 'var(--mono)' }}>Desay. contr. {oc.desayunos}</div>}
                 {ciudad.map(c => (
-                  <div key={c.id} className="hr-extra" style={{ background: '#eef3ff', color: '#2d4fd4' }}>
-                    <span>{c.categoria === 'futbol' ? '⚽ ' : ''}{c.hora ? corto(c.hora) + ' ' : ''}{c.descripcion}</span>
-                    <button className="hr-x" onClick={() => borrarRecurso('ciudad', 'id', c.id).catch(() => {})} aria-label="Quitar">✕</button>
-                  </div>
+                  <button key={c.id} className="hr-extra hr-clic" style={{ background: '#eef3ff', color: '#2d4fd4', border: 0, textAlign: 'left', font: 'inherit', fontSize: 12 }}
+                    onClick={() => setDiaAbierto(f)} title="Editar">
+                    <span>{c.categoria === 'futbol' ? '⚽ ' : ''}{c.hora ? corto(c.hora) + ' ' : ''}{c.descripcion}{c.en_madrid && c.categoria === 'futbol' ? ' · en Madrid' : ''}</span>
+                  </button>
                 ))}
-                {abierto?.fecha === f && abierto.tipo === 'ciudad'
-                  ? <FormCiudad fecha={f} onCancel={() => setAbierto(null)} onSave={b => guardarRecurso('ciudad', b).then(() => setAbierto(null))} />
-                  : <button className="hr-link" onClick={() => setAbierto({ fecha: f, tipo: 'ciudad' })}>+ evento ciudad</button>}
+                <button className="hr-btn sm" onClick={() => setDiaAbierto(f)}>Eventos y partidos del día</button>
                 {v.ausentes.length > 0 && (
                   <div className="hr-muted" style={{ marginTop: 4 }}>
                     {v.ausentes.map(a => (
@@ -166,10 +168,11 @@ function Semana() {
                       <div className="hr-pill mal" style={{ alignSelf: 'flex-start' }}>Sin cubrir: {v.faltanCodigos.join(', ')}</div>
                     )}
                     {vf.eventos.map(ev => (
-                      <div key={ev.id} className="hr-evento">
+                      <button key={ev.id} className="hr-evento hr-clic" style={{ border: 0, textAlign: 'left', font: 'inherit', fontSize: 12 }}
+                        onClick={() => setDiaAbierto(f)} title="Editar evento">
                         <span><b>{ev.hora ? corto(ev.hora) : ''}</b> {ev.pax != null ? `${ev.pax} pax` : ''} {ev.tipo ?? ''} {ev.nombre ? `· ${ev.nombre}` : ''}</span>
-                        <button className="hr-x" onClick={() => borrarRecurso('eventos', 'id', ev.id).catch(() => {})} aria-label="Quitar evento">✕</button>
-                      </div>
+                        <span aria-hidden>✎</span>
+                      </button>
                     ))}
                     <div className="hr-chips">
                       {vf.grupos.map(g => (
@@ -203,9 +206,7 @@ function Semana() {
                     ))}
 
                     {abierto?.fecha === f && abierto.franja === fr ? (
-                      abierto.tipo === 'evento' ? (
-                        <FormEvento fecha={f} franja={fr} onCancel={() => setAbierto(null)} onSave={b => guardarRecurso('eventos', b).then(() => setAbierto(null))} />
-                      ) : abierto.tipo === 'extra' ? (
+                      abierto.tipo === 'extra' ? (
                         <FormExtra fecha={f} franja={fr} onCancel={() => setAbierto(null)} onSave={b => guardarRecurso('extras', b).then(() => setAbierto(null))} />
                       ) : (
                         <FormAsignar
@@ -220,7 +221,7 @@ function Semana() {
                       <div className="hr-addline">
                         <button className="hr-link" onClick={() => setAbierto({ fecha: f, franja: fr, tipo: 'asignar' })}>+ persona</button>
                         <button className="hr-link" onClick={() => setAbierto({ fecha: f, franja: fr, tipo: 'extra' })}>+ extra</button>
-                        <button className="hr-link" onClick={() => setAbierto({ fecha: f, franja: fr, tipo: 'evento' })}>+ evento</button>
+                        <button className="hr-link" onClick={() => setDiaAbierto(f)}>+ evento</button>
                       </div>
                     )}
                     <textarea
@@ -274,6 +275,10 @@ function Semana() {
         </div>
       </div>
 
+      {diaAbierto && (
+        <EditorDia fecha={diaAbierto} datos={datos} error={error} onClose={() => { setDiaAbierto(null); setError('') }}
+          guardar={(r, b) => guardarRecurso(r, b)} borrar={(r, k, v) => borrarRecurso(r, k, v)} />
+      )}
       {editando && (
         <EditorCelda
           empleado={editando.emp}
@@ -290,26 +295,6 @@ function Semana() {
 }
 
 // ---------------------------------------------------------------- formularios
-
-function FormEvento({ fecha, franja, onSave, onCancel }: { fecha: string; franja: Franja; onSave: (b: unknown) => Promise<unknown>; onCancel: () => void }) {
-  const [hora, setHora] = useState('')
-  const [pax, setPax] = useState('')
-  const [tipo, setTipo] = useState('')
-  const [nombre, setNombre] = useState('')
-  return (
-    <form className="hr-addline" onSubmit={e => { e.preventDefault(); onSave({ fecha, franja, hora: hora || null, pax: pax || null, tipo, nombre }).catch(() => {}) }}>
-      <input className="hr-input" type="time" value={hora} onChange={e => setHora(e.target.value)} style={{ width: 92 }} aria-label="Hora" />
-      <input className="hr-input" inputMode="numeric" placeholder="pax" value={pax} onChange={e => setPax(e.target.value)} style={{ width: 56 }} />
-      <input className="hr-input" list="hr-tipos-evento" placeholder="tipo" value={tipo} onChange={e => setTipo(e.target.value)} style={{ width: 96 }} maxLength={40} />
-      <input className="hr-input" placeholder="nombre / sala" value={nombre} onChange={e => setNombre(e.target.value)} style={{ width: 110 }} maxLength={80} />
-      <datalist id="hr-tipos-evento">
-        {['Coffee', 'Comida', 'Cena', 'Buffet', 'Finger', 'Cóctel', 'Barra libre', 'Comunión', 'Boda', 'Gala'].map(t => <option key={t} value={t} />)}
-      </datalist>
-      <button className="hr-btn sm pri">Añadir</button>
-      <button type="button" className="hr-btn sm" onClick={onCancel}>✕</button>
-    </form>
-  )
-}
 
 const HORAS_DEFECTO: Record<Franja, [string, string]> = { manana: ['09:00', '13:00'], mediodia: ['13:00', '17:00'], tarde: ['18:00', '24:00'] }
 
@@ -355,27 +340,6 @@ function FormAsignar({ libres, turnos, onSave, onOtro, onCancel }: {
       <button className="hr-btn sm pri" disabled={!emp || !turno}>Poner</button>
       <button type="button" className="hr-btn sm" disabled={!emp} onClick={() => emp && onOtro(emp)}>Otro horario…</button>
       <button type="button" className="hr-btn sm" onClick={onCancel}>✕</button>
-    </form>
-  )
-}
-
-function FormCiudad({ fecha, onSave, onCancel }: { fecha: string; onSave: (b: unknown) => Promise<unknown>; onCancel: () => void }) {
-  const [hora, setHora] = useState('')
-  const [descripcion, setDescripcion] = useState('')
-  const [categoria, setCategoria] = useState('futbol')
-  return (
-    <form style={{ display: 'grid', gap: 4 }} onSubmit={e => { e.preventDefault(); onSave({ fecha, hora: hora || null, descripcion, categoria }).catch(() => {}) }}>
-      <input className="hr-input" placeholder="Atleti - Madrid" value={descripcion} onChange={e => setDescripcion(e.target.value)} maxLength={80} autoFocus />
-      <div style={{ display: 'flex', gap: 4 }}>
-        <input className="hr-input" type="time" value={hora} onChange={e => setHora(e.target.value)} style={{ width: 90 }} aria-label="Hora" />
-        <select className="hr-select" value={categoria} onChange={e => setCategoria(e.target.value)} aria-label="Tipo">
-          <option value="futbol">Fútbol</option><option value="concierto">Concierto</option><option value="feria">Feria</option><option value="otro">Otro</option>
-        </select>
-      </div>
-      <div style={{ display: 'flex', gap: 4 }}>
-        <button className="hr-btn sm pri" disabled={!descripcion.trim()}>Añadir</button>
-        <button type="button" className="hr-btn sm" onClick={onCancel}>✕</button>
-      </div>
     </form>
   )
 }
