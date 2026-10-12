@@ -1,0 +1,5 @@
+{
+  "crons": [
+    { "path": "/api/horario-cron/partidos", "schedule": "17 5 * * *" }
+  ]
+}

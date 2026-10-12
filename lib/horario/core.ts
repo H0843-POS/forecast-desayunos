@@ -26,6 +26,7 @@ export interface Empleado {
   saldo_festivos_inicial: number
   orden: number
   activo: boolean
+  notas?: string | null
 }
 export interface Turno {
   codigo: string
@@ -46,6 +47,8 @@ export interface Asignacion {
   fin2: string | null
   horas: number | null
   nota: string | null
+  /** solo L: lunes de la semana a la que corresponde el libre (null = la suya) */
+  libre_de?: string | null
 }
 export type Motivo = 'evento' | 'ocupacion' | 'refuerzo' | 'otro'
 export const MOTIVOS: Motivo[] = ['evento', 'ocupacion', 'refuerzo', 'otro']
@@ -76,6 +79,9 @@ export interface EventoCiudad {
   hora: string | null
   categoria: 'futbol' | 'concierto' | 'feria' | 'otro'
   descripcion: string
+  competicion?: string | null
+  en_madrid?: boolean
+  external_id?: string | null
 }
 export interface Festivo {
   fecha: string
@@ -118,6 +124,8 @@ export interface Ocupacion {
   personas: number
   desayunos: number | null
   fuente: 'forecast' | 'manual'
+  /** cuándo se subió el forecast del que sale el dato */
+  cargado?: string
 }
 
 export interface DatosHorario {
@@ -195,15 +203,18 @@ export function corto(t: string | null): string {
   return t ? t.slice(0, 5) : ''
 }
 
+/** El turno de comidas empieza a las 11:00 */
+export const INICIO_COMIDAS = 11 * 60
+
 /** Franja "de origen" de un turno según su hora de entrada (para color y agrupar) */
 export function franjaDeMinuto(min: number): Franja {
-  if (min < 12 * 60) return 'manana'
+  if (min < INICIO_COMIDAS) return 'manana'
   if (min < 15 * 60) return 'mediodia'
   return 'tarde'
 }
 
 // Cobertura por PRESENCIA, como en la hoja en papel:
-//  - desayunos: entra antes de las 12:00 (AP, M7, M8, M9)
+//  - desayunos: entra antes de las 11:00 (AP, M7, M8, M9)
 //  - comidas:   está presente de 14:00 a 16:00 (M8, M9, P13, P14…)
 //  - cenas:     está presente de 21:00 a 23:00 (T16, T17, T18…)
 // Así un M9 cuenta en desayunos y en comidas, igual que lo apuntáis a mano.
@@ -216,7 +227,7 @@ function cubre(s: Segmento, [a, b]: [number, number]): boolean {
 
 export function franjasCubiertas(s: Segmento): Set<Franja> {
   const out = new Set<Franja>()
-  if (s.ini % 1440 < 12 * 60) out.add('manana')
+  if (s.ini % 1440 < INICIO_COMIDAS) out.add('manana')
   if (cubre(s, VENTANA_COMIDAS)) out.add('mediodia')
   if (cubre(s, VENTANA_CENAS)) out.add('tarde')
   return out
@@ -278,6 +289,8 @@ export function horasNocturnas(a: Asignacion, turnos: Map<string, Turno>): numbe
 }
 
 export type ColorTurno = 'rosa' | 'blanco' | 'verde' | 'ausencia' | 'libre'
+/** En la hoja semanal las comidas van en azul claro (en el mensual siguen en blanco) */
+export const AZUL_COMIDAS = { bg: '#dbeafe', fg: '#1e3a8a', rgb: [219, 234, 254] as [number, number, number] }
 export function colorAsignacion(a: Asignacion | undefined, turnos: Map<string, Turno>): ColorTurno | null {
   if (!a) return null
   if (a.tipo === 'L') return 'libre'
@@ -299,18 +312,21 @@ export const COLORES: Record<ColorTurno, { bg: string; fg: string; rgb: [number,
 /** Texto corto que se muestra en la celda */
 export function etiqueta(a: Asignacion | undefined, turnos: Map<string, Turno>): string {
   if (!a) return ''
+  if (a.tipo === 'L') return `L${semanaISO(a.libre_de ?? a.fecha).semana}`
   if (a.tipo !== 'T') return a.tipo
   const t = a.turno ? turnos.get(a.turno) : undefined
   const custom = (a.inicio && a.fin) || a.inicio2
   if (t && !custom) return t.codigo
   const s = segmentos(a, turnos)
-  const txt = s.map(x => `${Math.floor((x.ini % 1440) / 60)}-${Math.floor((x.fin % 1440) / 60)}`).join('/')
+  const h = (m: number) => { const x = m % 1440; return x % 60 ? `${Math.floor(x / 60)}:${String(x % 60).padStart(2, '0')}` : String(Math.floor(x / 60)) }
+  const txt = s.map(x => `${h(x.ini)}-${h(x.fin)}`).join('/')
   return a.turno ? `${a.turno}*` : txt
 }
 
 /** Descripción completa (para historial de ajustes y tooltips) */
 export function describir(a: Asignacion | undefined | null, turnos: Map<string, Turno>): string {
   if (!a) return '—'
+  if (a.tipo === 'L') return `Libre L${semanaISO(a.libre_de ?? a.fecha).semana}`
   if (a.tipo !== 'T') {
     const lab = AUSENCIAS.find(x => x.tipo === a.tipo)?.label ?? a.tipo
     return a.tipo === 'FO' && a.horas != null ? `${lab} (${a.horas}h)` : lab
@@ -402,7 +418,7 @@ export function cobertura(
 
 export function franjaEvento(e: Evento): Franja {
   const h = hm(e.hora)
-  if (h != null) return h < 12 * 60 ? 'manana' : h < 16 * 60 ? 'mediodia' : 'tarde'
+  if (h != null) return h < INICIO_COMIDAS ? 'manana' : h < 16 * 60 ? 'mediodia' : 'tarde'
   return e.franja ?? 'mediodia'
 }
 
@@ -503,4 +519,97 @@ export function indexAsignaciones(asig: Asignacion[]): Map<string, Map<string, A
     m.get(a.empleado_id)!.set(a.fecha, a)
   }
   return m
+}
+
+// ---------------------------------------------------------------- semanas ISO (L1, L2…)
+
+/** Semana ISO (lunes a domingo; la semana 1 es la que contiene el primer jueves del año) */
+export function semanaISO(fecha: string): { anio: number; semana: number } {
+  const d = parseIso(fecha)
+  const jueves = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 3 - ((d.getDay() + 6) % 7))
+  const anio = jueves.getFullYear()
+  const ene4 = new Date(anio, 0, 4)
+  const semana = 1 + Math.round(((jueves.getTime() - ene4.getTime()) / 86400000 - 3 + ((ene4.getDay() + 6) % 7)) / 7)
+  return { anio, semana }
+}
+
+/** Lunes de la semana ISO n del año */
+export function lunesSemanaISO(anio: number, semana: number): string {
+  const ene4 = new Date(anio, 0, 4)
+  const lunes1 = new Date(anio, 0, 4 - ((ene4.getDay() + 6) % 7))
+  return iso(new Date(lunes1.getFullYear(), lunes1.getMonth(), lunes1.getDate() + (semana - 1) * 7))
+}
+
+/** "L40" escrito el día `fecha`: la última semana 40 que no sea posterior a la semana siguiente */
+export function lunesDeLibre(semana: number, fecha: string): string {
+  const { anio } = semanaISO(fecha)
+  const tope = addDays(lunes(fecha), 7)
+  const cands = [anio - 1, anio, anio + 1]
+    .map(a => lunesSemanaISO(a, semana))
+    .filter(l => semanaISO(l).semana === semana && l <= tope)
+    .sort()
+  if (!cands.length) throw new Error('Semana no válida')
+  return cands[cands.length - 1]
+}
+
+// ---------------------------------------------------------------- escribir un turno a mano
+
+export type Entrada = Omit<Partial<Asignacion>, 'tipo'> & { tipo: TipoAsig | null }
+
+/**
+ * Interpreta lo que se escribe en una celda:
+ *   "M9", "t17"            → turno predefinido
+ *   "9-17", "9:30-17:30"   → si coincide con un turno predefinido lo usa; si no, horario libre
+ *   "10-14/20-24"          → turno partido
+ *   "L", "L40"             → libre (de la semana 40), "V", "BJ", "FO", "FO4" (4 h), "B"
+ *   "" o "-"               → vaciar
+ */
+export function parseEntrada(texto: string, fecha: string, turnos: Map<string, Turno>): Entrada {
+  const t = texto.trim().toUpperCase().replace(/\s+/g, '')
+  if (t === '' || t === '-') return { tipo: null }
+  if (turnos.has(t)) return { tipo: 'T', turno: t }
+  const mL = /^L(\d{1,2})?$/.exec(t)
+  if (mL) {
+    if (!mL[1]) return { tipo: 'L', libre_de: null }
+    const n = Number(mL[1])
+    if (n < 1 || n > 53) throw new Error('Semana no válida (1-53)')
+    const l = lunesDeLibre(n, fecha)
+    return { tipo: 'L', libre_de: l === lunes(fecha) ? null : l }
+  }
+  const mFO = /^FO(\d{1,2}(?:[.,]\d{1,2})?)?$/.exec(t)
+  if (mFO) return { tipo: 'FO', horas: mFO[1] ? Number(mFO[1].replace(',', '.')) : null }
+  if (t === 'V' || t === 'BJ' || t === 'B') return { tipo: t }
+
+  const hora = (x: string): string => {
+    const m = /^(\d{1,2})(?:[:.H]?(\d{2}))?$/.exec(x)
+    if (!m) throw new Error(`No entiendo "${texto}"`)
+    let h = Number(m[1]); const mi = Number(m[2] ?? 0)
+    if (h === 24) h = 0
+    if (h > 23 || mi > 59) throw new Error(`Hora no válida en "${texto}"`)
+    return `${String(h).padStart(2, '0')}:${String(mi).padStart(2, '0')}`
+  }
+  const tramos = t.split('/').map(p => {
+    const m = /^([\d:.H]+)-([\d:.H]+)$/.exec(p)
+    if (!m) throw new Error(`No entiendo "${texto}". Ejemplos: M9, 9-17, 10-14/20-24, L, L40, V, BJ, FO, B`)
+    return [hora(m[1]), hora(m[2])] as const
+  })
+  if (tramos.length > 2) throw new Error('Máximo dos tramos (turno partido)')
+  const [ini, fin] = tramos[0]
+  if (tramos.length === 1) {
+    for (const tu of Array.from(turnos.values())) {
+      if (tu.activo && tu.inicio === ini && tu.fin === fin) return { tipo: 'T', turno: tu.codigo }
+    }
+    return { tipo: 'T', turno: null, inicio: ini, fin }
+  }
+  return { tipo: 'T', turno: null, inicio: ini, fin, inicio2: tramos[1][0], fin2: tramos[1][1] }
+}
+
+/** Texto para mostrar en el campo al editar una celda (lo inverso de parseEntrada) */
+export function textoEntrada(a: Asignacion | undefined, turnos: Map<string, Turno>): string {
+  if (!a) return ''
+  if (a.tipo === 'L') return a.libre_de ? `L${semanaISO(a.libre_de).semana}` : 'L'
+  if (a.tipo === 'FO') return a.horas != null ? `FO${a.horas}` : 'FO'
+  if (a.tipo !== 'T') return a.tipo
+  if (a.turno && !a.inicio && !a.inicio2) return a.turno
+  return segmentos(a, turnos).map(x => `${fmtHm(x.ini)}-${fmtHm(x.fin)}`).join('/')
 }

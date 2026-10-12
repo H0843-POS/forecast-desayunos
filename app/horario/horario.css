@@ -45,6 +45,7 @@ table.hr-grid { border-collapse:separate; border-spacing:0; font-size:12px; }
 .hr-grid thead tr:nth-child(1) th { top:0; height:34px; }
 .hr-grid thead tr:nth-child(2) th { top:34px; height:22px; }
 .hr-grid thead tr:nth-child(3) th { top:56px; height:22px; }
+.hr-grid thead tr:nth-child(4) th { top:78px; height:22px; }
 .hr-grid .hr-name { position:sticky; left:0; z-index:2; background:#fff; text-align:left; padding:0 10px; min-width:150px; max-width:150px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .hr-grid thead .hr-name { z-index:5; background:#faf9f6; }
 .hr-grid .hr-day { min-width:42px; width:42px; }
@@ -117,3 +118,16 @@ table.hr-tabla { width:100%; border-collapse:collapse; font-size:13px; }
 .hr-tabla td { padding:6px 8px; border-bottom:1px solid var(--border); vertical-align:middle; }
 .hr-cols { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 460px), 1fr)); gap:14px; align-items:start; }
 .hr-card h2 { font-size:15px; font-weight:500; margin-bottom:10px; }
+
+/* ---- Editor de día ---- */
+.hr-sec { font-size:12px; font-family:var(--mono); text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted); font-weight:500; margin-bottom:6px; }
+.hr-mbody section { display:block; }
+.hr-tabla-ed td { padding:4px 4px; }
+.hr-tabla-ed th { padding:4px; }
+.hr-mbody { overflow-x:auto; }
+.hr-clic { cursor:pointer; }
+.hr-clic:hover { background:#eef3ff !important; }
+.hr-cellin { width:100%; height:28px; border:0; outline:0; text-align:center; font-family:var(--mono); font-size:11px; text-transform:uppercase; background:#fffbe6; padding:0 2px; }
+.hr-grid td.hr-cell[draggable=true] { cursor:grab; }
+.hr-form-in { display:grid; gap:6px; background:#fff8ed; border-radius:8px; padding:8px; }
+.hr-form-in .hr-lab { text-transform:none; letter-spacing:0; font-size:10px; }

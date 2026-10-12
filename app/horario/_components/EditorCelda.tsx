@@ -6,6 +6,9 @@ import {
   DIAS_LARGO,
   colorAsignacion,
   diaSemana,
+  lunes,
+  lunesDeLibre,
+  semanaISO,
   type Asignacion,
   type Empleado,
   type TipoAsig,
@@ -34,6 +37,7 @@ export default function EditorCelda({ empleado, fecha, actual, turnos, tm, onSav
   const [fin2, setFin2] = useState(actual?.fin2 ?? '')
   const [horas, setHoras] = useState(actual?.horas != null ? String(actual.horas) : '')
   const [nota, setNota] = useState(actual?.nota ?? '')
+  const [semL, setSemL] = useState(String(semanaISO(actual?.libre_de ?? fecha).semana))
   const [error, setError] = useState('')
   const [guardando, setGuardando] = useState(false)
 
@@ -59,6 +63,9 @@ export default function EditorCelda({ empleado, fecha, actual, turnos, tm, onSav
           fin2: tipo === 'T' && partido ? fin2 || null : null,
           horas: tipo === 'FO' && horas ? Number(horas.replace(',', '.')) : null,
           nota: nota.trim() || null,
+          libre_de: tipo === 'L' && /^\d{1,2}$/.test(semL) && Number(semL) >= 1 && Number(semL) <= 53
+            ? (() => { const l = lunesDeLibre(Number(semL), fecha); return l === lunes(fecha) ? null : l })()
+            : null,
         }
     if (input.tipo === 'T' && !input.turno && !(input.inicio && input.fin)) {
       setError('Elige un turno o indica el horario')
@@ -145,6 +152,13 @@ export default function EditorCelda({ empleado, fecha, actual, turnos, tm, onSav
                 </div>
               )}
             </div>
+          )}
+          {tipo === 'L' && (
+            <label className="hr-lab">
+              Libre de la semana (L{semL || '?'}) · cámbialo si devuelves un libre de otra semana
+              <input className="hr-input" inputMode="numeric" style={{ width: 80 }} value={semL}
+                onChange={e => setSemL(e.target.value.replace(/\D/g, '').slice(0, 2))} />
+            </label>
           )}
           {tipo === 'FO' && (
             <label className="hr-lab">

@@ -54,3 +54,10 @@ Base de datos: ejecutar `supabase_horario.sql` en el SQL Editor (idempotente).
 Crea las tablas `hr_*` con RLS activado sin políticas y carga turnos, festivos 2026-2027 y reglas de cobertura.
 
 Cambiar `HORARIO_PASSWORD` cierra todas las sesiones abiertas.
+
+### Actualización 2 (eventos, partidos, libres numerados)
+
+1. Ejecutar `supabase_horario_2.sql` en Supabase **antes** de desplegar.
+2. Variables nuevas en Vercel (Production y Preview):
+   - `FOOTBALL_DATA_TOKEN`: clave gratuita de football-data.org (partidos de Champions y LaLiga).
+   - `CRON_SECRET`: texto aleatorio de 16+ caracteres; Vercel lo usa para lanzar la actualización diaria de partidos (`vercel.json`).
