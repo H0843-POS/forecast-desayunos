@@ -203,15 +203,18 @@ export function corto(t: string | null): string {
   return t ? t.slice(0, 5) : ''
 }
 
+/** El turno de comidas empieza a las 11:00 */
+export const INICIO_COMIDAS = 11 * 60
+
 /** Franja "de origen" de un turno según su hora de entrada (para color y agrupar) */
 export function franjaDeMinuto(min: number): Franja {
-  if (min < 12 * 60) return 'manana'
+  if (min < INICIO_COMIDAS) return 'manana'
   if (min < 15 * 60) return 'mediodia'
   return 'tarde'
 }
 
 // Cobertura por PRESENCIA, como en la hoja en papel:
-//  - desayunos: entra antes de las 12:00 (AP, M7, M8, M9)
+//  - desayunos: entra antes de las 11:00 (AP, M7, M8, M9)
 //  - comidas:   está presente de 14:00 a 16:00 (M8, M9, P13, P14…)
 //  - cenas:     está presente de 21:00 a 23:00 (T16, T17, T18…)
 // Así un M9 cuenta en desayunos y en comidas, igual que lo apuntáis a mano.
@@ -224,7 +227,7 @@ function cubre(s: Segmento, [a, b]: [number, number]): boolean {
 
 export function franjasCubiertas(s: Segmento): Set<Franja> {
   const out = new Set<Franja>()
-  if (s.ini % 1440 < 12 * 60) out.add('manana')
+  if (s.ini % 1440 < INICIO_COMIDAS) out.add('manana')
   if (cubre(s, VENTANA_COMIDAS)) out.add('mediodia')
   if (cubre(s, VENTANA_CENAS)) out.add('tarde')
   return out
@@ -286,6 +289,8 @@ export function horasNocturnas(a: Asignacion, turnos: Map<string, Turno>): numbe
 }
 
 export type ColorTurno = 'rosa' | 'blanco' | 'verde' | 'ausencia' | 'libre'
+/** En la hoja semanal las comidas van en azul claro (en el mensual siguen en blanco) */
+export const AZUL_COMIDAS = { bg: '#dbeafe', fg: '#1e3a8a', rgb: [219, 234, 254] as [number, number, number] }
 export function colorAsignacion(a: Asignacion | undefined, turnos: Map<string, Turno>): ColorTurno | null {
   if (!a) return null
   if (a.tipo === 'L') return 'libre'
@@ -413,7 +418,7 @@ export function cobertura(
 
 export function franjaEvento(e: Evento): Franja {
   const h = hm(e.hora)
-  if (h != null) return h < 12 * 60 ? 'manana' : h < 16 * 60 ? 'mediodia' : 'tarde'
+  if (h != null) return h < INICIO_COMIDAS ? 'manana' : h < 16 * 60 ? 'mediodia' : 'tarde'
   return e.franja ?? 'mediodia'
 }
 

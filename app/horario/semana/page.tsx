@@ -12,6 +12,7 @@ import {
   addDays,
   colorAsignacion,
   COLORES,
+  AZUL_COMIDAS,
   corto,
   diaSemana,
   fmtH,
@@ -187,7 +188,8 @@ function Semana() {
                           <span className="cod">{g.label}</span>
                           <span style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
                             {g.personas.map(p => {
-                              const c = COLORES[colorAsignacion(p.asig, d.tm) ?? 'blanco']
+                              const col = colorAsignacion(p.asig, d.tm) ?? 'blanco'
+                              const c = col === 'blanco' ? AZUL_COMIDAS : COLORES[col]
                               return (
                                 <button key={p.emp.id + g.label} className="hr-chip" style={{ background: c.bg, color: c.fg }}
                                   title={`${p.horario}${p.asig.nota ? ' · ' + p.asig.nota : ''}`}
@@ -201,8 +203,19 @@ function Semana() {
                       ))}
                     </div>
                     {vf.apoyo.length > 0 && (
-                      <div className="hr-muted" title="Cuentan en esta franja porque su turno la cubre">
-                        También: {vf.apoyo.map(a => `${a.emp.nombre} (${a.label})`).join(', ')}
+                      <div className="hr-chiprow" title="También cuentan en esta franja porque su turno la cubre">
+                        <span className="cod">+</span>
+                        <span style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                          {vf.apoyo.map(a => {
+                            const c = fr === 'mediodia' ? AZUL_COMIDAS : fr === 'tarde' ? COLORES.verde : COLORES.rosa
+                            return (
+                              <button key={a.emp.id} className="hr-chip" style={{ background: c.bg, color: c.fg, borderStyle: 'dashed' }}
+                                onClick={() => setEditando({ emp: a.emp, fecha: f })}>
+                                {a.emp.nombre} <span style={{ opacity: 0.6, fontSize: 10 }}>{a.label}</span>
+                              </button>
+                            )
+                          })}
+                        </span>
                       </div>
                     )}
                     {vf.extras.map(x => editItem === x.id ? (

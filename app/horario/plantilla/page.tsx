@@ -58,7 +58,7 @@ export default function Plantilla() {
           <div className="hr-card">
             <h2>Turnos</h2>
             <p className="hr-muted" style={{ marginBottom: 8 }}>
-              El color sale de la hora de entrada: antes de las 12 rosa, de 12 a 15 blanco, desde las 15 verde.
+              El color sale de la hora de entrada: antes de las 11 rosa, de 11 a 15 blanco (azul claro en la hoja semanal), desde las 15 verde.
               Para una excepción de un día no hace falta crear turno: usa «Otro horario» en la celda.
             </p>
             <table className="hr-tabla">
