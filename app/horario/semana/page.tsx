@@ -45,6 +45,7 @@ function Semana() {
   const [abierto, setAbierto] = useState<Abierto>(null)
   const [diaAbierto, setDiaAbierto] = useState<string | null>(null)
   const [editItem, setEditItem] = useState<string | null>(null)
+  const [editOcup, setEditOcup] = useState<string | null>(null)
 
   const irSemana = (n: number) => router.push(`/horario/semana?d=${addDays(lunes, 7 * n)}`)
   const fmt = (f: string) => `${Number(f.slice(8))} ${MESES[Number(f.slice(5, 7)) - 1].toLowerCase()}`
@@ -124,17 +125,34 @@ function Semana() {
                 <div className="dn" style={fes ? { color: '#a3221b' } : undefined}>{DIAS_LARGO[diaSemana(f)]}</div>
                 <div className="dd">{Number(f.slice(8))}</div>
                 {fes && <div style={{ fontSize: 11, color: '#a3221b' }}>{fes.nombre}</div>}
-                <label className="hr-lab" style={{ marginTop: 4 }}>
-                  Ocupación {oc?.fuente === 'manual' ? '(manual)' : ''}
-                  <input
-                    key={`${f}-${dia?.ocupacion_manual ?? ''}`}
-                    className="hr-input" inputMode="numeric" style={{ width: 90, fontFamily: 'var(--mono)' }}
-                    defaultValue={dia?.ocupacion_manual ?? ''}
-                    placeholder={forecast != null ? String(forecast) : 'sin forecast'}
-                    onBlur={e => { if (e.target.value !== String(dia?.ocupacion_manual ?? '')) guardarDia(f, 'ocupacion_manual', e.target.value) }}
-                    title="Vacío = el dato del forecast"
-                  />
-                </label>
+                <div style={{ marginTop: 4 }}>
+                  <div className="hr-muted" style={{ fontFamily: 'var(--mono)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '.04em' }}>
+                    Ocupación {oc?.fuente === 'manual' ? '· a mano' : oc ? '· forecast' : ''}
+                  </div>
+                  {editOcup === f ? (
+                    <input
+                      autoFocus className="hr-input" inputMode="numeric" style={{ width: 90, fontFamily: 'var(--mono)' }}
+                      defaultValue={dia?.ocupacion_manual ?? oc?.personas ?? ''}
+                      placeholder="vacío = forecast"
+                      onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditOcup(null) }}
+                      onBlur={e => {
+                        const v = e.target.value.trim()
+                        setEditOcup(null)
+                        // si coincide con el forecast no hace falta guardarlo a mano
+                        const nuevo = v === '' || (forecast != null && Number(v) === forecast) ? '' : v
+                        if (nuevo !== String(dia?.ocupacion_manual ?? '')) guardarDia(f, 'ocupacion_manual', nuevo)
+                      }}
+                    />
+                  ) : (
+                    <button className="hr-clic" onClick={() => setEditOcup(f)} title="Cambiar a mano"
+                      style={{ background: 'none', border: 0, padding: 0, font: 'inherit', fontFamily: 'var(--mono)', fontSize: 22, fontWeight: 300, color: oc ? 'var(--text)' : 'var(--text-faint)', cursor: 'pointer' }}>
+                      {oc ? oc.personas : '—'} <span style={{ fontSize: 11, opacity: 0.5 }}>✎</span>
+                    </button>
+                  )}
+                  {oc?.fuente === 'manual' && (
+                    <button className="hr-link" style={{ display: 'block' }} onClick={() => guardarDia(f, 'ocupacion_manual', '')}>volver al forecast</button>
+                  )}
+                </div>
                 {oc?.desayunos != null && <div className="hr-muted" style={{ fontFamily: 'var(--mono)' }}>Desay. contr. {oc.desayunos}</div>}
                 {ciudad.map(c => (
                   <button key={c.id} className="hr-extra hr-clic" style={{ background: '#eef3ff', color: '#2d4fd4', border: 0, textAlign: 'left', font: 'inherit', fontSize: 12 }}
@@ -142,7 +160,7 @@ function Semana() {
                     <span>{c.categoria === 'futbol' ? '⚽ ' : ''}{c.hora ? corto(c.hora) + ' ' : ''}{c.descripcion}{c.en_madrid && c.categoria === 'futbol' ? ' · en Madrid' : ''}</span>
                   </button>
                 ))}
-                <button className="hr-btn sm" onClick={() => setDiaAbierto(f)}>Eventos y partidos del día</button>
+                <button className="hr-btn sm" onClick={() => setDiaAbierto(f)}>Eventos del día</button>
                 {v.ausentes.length > 0 && (
                   <div className="hr-muted" style={{ marginTop: 4 }}>
                     {v.ausentes.map(a => (
