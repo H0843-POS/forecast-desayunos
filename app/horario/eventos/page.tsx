@@ -17,7 +17,7 @@ import {
 import { useDatos } from '../_lib/useDatos'
 import EditorDia from '../_components/EditorDia'
 
-interface EstadoSync { ultima: { at?: string; mensaje?: string } | null; configurado: boolean }
+interface EstadoSync { ultima: { at?: string; mensaje?: string } | null; configurado: boolean; ticketmaster?: boolean }
 
 function mesActual(): string {
   const d = new Date()
@@ -47,7 +47,7 @@ function Eventos() {
     setSincronizando(true); setMsg('')
     try {
       const r = await api.post<{ ok: boolean; mensaje: string; borrados: number }>('/api/horario/partidos', {})
-      setMsg(r.ok ? `Actualizado: ${r.mensaje}${r.borrados ? ` · ${r.borrados} quitados (aplazados o cancelados)` : ''}` : r.mensaje)
+      setMsg(`${r.mensaje}${r.borrados ? ` · ${r.borrados} quitados (aplazados o cancelados)` : ''}`)
       await Promise.all([cargar(), leerSync()])
     } catch (e) {
       setMsg(e instanceof Error ? e.message : 'Error al sincronizar')
@@ -107,14 +107,14 @@ function Eventos() {
         <div className="hr-card">
           <h2 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             Partidos y ciudad
-            <button className="hr-btn sm pri" onClick={sincronizar} disabled={sincronizando || sync?.configurado === false}>
-              {sincronizando ? 'Actualizando…' : 'Actualizar partidos'}
+            <button className="hr-btn sm pri" onClick={sincronizar} disabled={sincronizando || (sync?.configurado === false && sync?.ticketmaster === false)}>
+              {sincronizando ? 'Actualizando…' : 'Actualizar partidos y conciertos'}
             </button>
           </h2>
           <p className="hr-muted" style={{ marginBottom: 8 }}>
-            {sync?.configurado === false
-              ? 'Falta la clave de football-data.org (FOOTBALL_DATA_TOKEN) en Vercel para traer los partidos solos.'
-              : <>Champions y LaLiga de Real Madrid, Atlético, Rayo y Barcelona, próximos 4 meses. Se actualiza solo cada mañana
+            {sync?.configurado === false && 'Falta FOOTBALL_DATA_TOKEN en Vercel (partidos). '}
+            {sync?.ticketmaster === false && 'Falta TICKETMASTER_KEY en Vercel (conciertos). '}
+            {(sync?.configurado || sync?.ticketmaster) && <>Partidos de Champions y LaLiga (Real Madrid, Atlético, Rayo, Barcelona) y grandes conciertos de Ticketmaster (estadios siempre; Movistar Arena y Las Ventas si repiten noches). Se actualiza solo cada mañana
                 {sync?.ultima?.at ? ` · última vez ${new Date(sync.ultima.at).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })}` : ''}.</>}
           </p>
           {msg && <div className="hr-aviso aviso" style={{ marginBottom: 8 }}>{msg}</div>}

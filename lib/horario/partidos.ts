@@ -118,6 +118,5 @@ export async function sincronizarPartidos(): Promise<ResultadoSync> {
     if (error) throw new Error(error.message)
   }
   const mensaje = `${filas.length} partidos en los próximos ${DIAS_ADELANTE} días`
-  await s.from('hr_config').upsert({ clave: 'partidos_sync', valor: { at: new Date().toISOString(), mensaje } })
   return { ok: true, importados: filas.length, borrados: sobran.length, mensaje }
 }

@@ -60,4 +60,5 @@ Cambiar `HORARIO_PASSWORD` cierra todas las sesiones abiertas.
 1. Ejecutar `supabase_horario_2.sql` en Supabase **antes** de desplegar.
 2. Variables nuevas en Vercel (Production y Preview):
    - `FOOTBALL_DATA_TOKEN`: clave gratuita de football-data.org (partidos de Champions y LaLiga).
-   - `CRON_SECRET`: texto aleatorio de 16+ caracteres; Vercel lo usa para lanzar la actualización diaria de partidos (`vercel.json`).
+   - `CRON_SECRET`: texto aleatorio de 16+ caracteres; Vercel lo usa para lanzar la actualización diaria (`vercel.json`).
+   - `TICKETMASTER_KEY`: Consumer Key gratuita de developer.ticketmaster.com (grandes conciertos).
