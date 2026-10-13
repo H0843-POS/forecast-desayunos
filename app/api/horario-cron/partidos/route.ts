@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { sincronizarPartidos } from '@/lib/horario/partidos'
+import { sincronizarTodo } from '@/lib/horario/sincronizar'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,7 +19,7 @@ function autorizado(req: NextRequest): boolean {
 export async function GET(req: NextRequest) {
   if (!autorizado(req)) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   try {
-    return NextResponse.json(await sincronizarPartidos())
+    return NextResponse.json(await sincronizarTodo())
   } catch (e) {
     console.error('[horario-cron]', e)
     return NextResponse.json({ error: 'Error al sincronizar' }, { status: 500 })
