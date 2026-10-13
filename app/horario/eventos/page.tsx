@@ -12,6 +12,7 @@ import {
   finDeMes,
   franjaEvento,
   iso,
+  ICONO_CIUDAD,
 } from '@/lib/horario/core'
 import { useDatos } from '../_lib/useDatos'
 import EditorDia from '../_components/EditorDia'
@@ -126,7 +127,7 @@ function Eventos() {
                     <td style={{ fontFamily: 'var(--mono)', whiteSpace: 'nowrap' }}>{fmtDia(c.fecha)}</td>
                     <td style={{ fontFamily: 'var(--mono)' }}>{c.hora ? corto(c.hora) : <span className="hr-muted" title="Hora aún sin confirmar">¿?</span>}</td>
                     <td>
-                      {c.categoria === 'futbol' ? '⚽ ' : ''}{c.descripcion}
+                      {ICONO_CIUDAD[c.categoria]} {c.descripcion}
                       {c.competicion && <span className="hr-pill" style={{ marginLeft: 6 }}>{c.competicion}</span>}
                       {c.en_madrid && <span className="hr-pill warn" style={{ marginLeft: 4 }}>en Madrid</span>}
                     </td>

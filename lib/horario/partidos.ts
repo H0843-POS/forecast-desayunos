@@ -107,9 +107,10 @@ export async function sincronizarPartidos(): Promise<ResultadoSync> {
     const { error } = await s.from('hr_eventos_ciudad').upsert(filas, { onConflict: 'external_id' })
     if (error) throw new Error(error.message)
   }
-  // Partidos futuros importados antes que ya no aparecen (aplazados/cancelados)
+  // Partidos futuros importados antes que ya no aparecen (aplazados/cancelados).
+  // Solo los que vienen de football-data (fd:…); los eventos cargados a mano (manual:…) no se tocan.
   const { data: previos, error: e2 } = await s.from('hr_eventos_ciudad')
-    .select('id, external_id').not('external_id', 'is', null).gte('fecha', desde).lte('fecha', hasta)
+    .select('id, external_id').like('external_id', 'fd:%').gte('fecha', desde).lte('fecha', hasta)
   if (e2) throw new Error(e2.message)
   const sobran = (previos ?? []).filter(p => !vistos.has(p.external_id as string)).map(p => p.id as string)
   if (sobran.length) {

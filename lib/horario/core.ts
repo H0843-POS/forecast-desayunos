@@ -613,3 +613,5 @@ export function textoEntrada(a: Asignacion | undefined, turnos: Map<string, Turn
   if (a.turno && !a.inicio && !a.inicio2) return a.turno
   return segmentos(a, turnos).map(x => `${fmtHm(x.ini)}-${fmtHm(x.fin)}`).join('/')
 }
+
+export const ICONO_CIUDAD: Record<EventoCiudad['categoria'], string> = { futbol: '⚽', concierto: '🎤', feria: '🏛', otro: '📍' }

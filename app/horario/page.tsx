@@ -24,6 +24,7 @@ import {
   type Asignacion,
   type Empleado,
   type TipoAsig,
+  ICONO_CIUDAD,
 } from '@/lib/horario/core'
 import { horasEmpleadoRango } from '@/lib/horario/vista'
 import { api } from '@/lib/horario/client'
@@ -295,7 +296,7 @@ function Mensual() {
                     return (
                       <th key={f} className="hr-clic" onClick={() => setDiaAbierto(f)} title={tip || 'Añadir partido o evento'}
                         style={{ fontSize: 11, fontWeight: 400, background: madrid ? '#fff3d6' : undefined }}>
-                        {ciu.length ? (ciu.some(c => c.categoria === 'futbol') ? '⚽' : '●') : ''}
+                        {ciu.length ? Array.from(new Set(ciu.map(c => ICONO_CIUDAD[c.categoria]))).join('') : ''}
                       </th>
                     )
                   })}
