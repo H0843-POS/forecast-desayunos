@@ -42,6 +42,7 @@ export default function ForecastPage() {
   const [ibisFile, setIbisFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [guardado, setGuardado] = useState('')
   const [novotel, setNovotel] = useState<ForecastData | null>(null)
   const [ibis, setIbis] = useState<ForecastData | null>(null)
 
@@ -58,7 +59,8 @@ export default function ForecastPage() {
       if (data.error) throw new Error(data.error)
       setNovotel(data.novotel)
       setIbis(data.ibis)
-      await fetch('/api/forecasts', {
+      setGuardado('')
+      const g = await fetch('/api/forecasts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -68,6 +70,9 @@ export default function ForecastPage() {
           ibis: data.ibis,
         }),
       })
+      const gj = await g.json().catch(() => ({}))
+      if (!g.ok) setError(`La tabla se ha generado, pero NO se ha guardado para el horario: ${gj.error || g.status}`)
+      else setGuardado('Guardado: el horario del restaurante ya usa esta ocupación')
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Error desconocido')
     } finally {
@@ -109,6 +114,7 @@ export default function ForecastPage() {
             <FileZone label="Archivo Ibis (.RTF)" file={ibisFile} onChange={setIbisFile} />
           </div>
           {error && <p style={{ color: '#dc2626', fontSize: 13, marginBottom: 10 }}>{error}</p>}
+          {guardado && <p style={{ color: '#1a7a3a', fontSize: 13, marginBottom: 10 }}>✓ {guardado}</p>}
           <button
             onClick={handleGenerate}
             disabled={!novotelFile || !ibisFile || loading}
