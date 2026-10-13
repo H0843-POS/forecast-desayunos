@@ -24,6 +24,7 @@ import {
   type Turno,
 } from './core'
 import { horasEmpleadoRango, horasExtra, vistaDia } from './vista'
+import { malaTerraza, textoCorto, type TiempoDia } from './tiempo'
 
 interface Derivados {
   tm: Map<string, Turno>
@@ -192,7 +193,7 @@ export async function pdfMensual(mes: string, fechas: string[], datos: DatosHora
 
 // ------------------------------------------------------------------ SEMANAL
 
-export async function pdfSemanal(lunes: string, fechas: string[], datos: DatosHorario, d: Derivados) {
+export async function pdfSemanal(lunes: string, fechas: string[], datos: DatosHorario, d: Derivados, tiempo?: Map<string, TiempoDia>) {
   const doc = await nuevoDoc('portrait')
   const W = 210
   const H = 297
@@ -244,6 +245,12 @@ export async function pdfSemanal(lunes: string, fechas: string[], datos: DatosHo
     let yl = y0 + 25.5
     doc.setFontSize(6)
     if (oc?.desayunos != null) { doc.setTextColor(110); doc.text(`Desay. contr. ${oc.desayunos}`, M + 2, yl); yl += 2.6 }
+    const ti = tiempo?.get(f)
+    if (ti) {
+      const lineas = doc.splitTextToSize(textoCorto(ti), leftW - 3).slice(0, 2)
+      doc.setTextColor(...((malaTerraza(ti) ? [45, 79, 212] : [90, 90, 90]) as [number, number, number]))
+      doc.text(lineas, M + 2, yl); yl += 2.6 * lineas.length
+    }
     if (fes) { doc.setTextColor(163, 34, 27); doc.text(doc.splitTextToSize(fes.nombre, leftW - 3).slice(0, 2), M + 2, yl); yl += 2.6 * Math.min(2, doc.splitTextToSize(fes.nombre, leftW - 3).length) }
     doc.setTextColor(45, 79, 212)
     for (const c of datos.ciudad.filter(c => c.fecha === f).slice(0, 2)) {
@@ -295,7 +302,7 @@ export async function pdfSemanal(lunes: string, fechas: string[], datos: DatosHo
       for (const x of vf.extras) {
         ettPersonas += x.cantidad
         ettHoras += horasExtra(x)
-        linea(`${x.cantidad} ${x.origen} ${corto(x.inicio)}-${corto(x.fin)} · ${MOTIVO_LABEL[x.motivo].toLowerCase()}${x.nota ? ' · ' + x.nota : ''}`, { code: 'EXT', color: [138, 90, 0] })
+        linea(`${x.cantidad > 1 ? x.cantidad + ' ' : ''}${x.origen} ${corto(x.inicio)}-${corto(x.fin)} · ${MOTIVO_LABEL[x.motivo].toLowerCase()}${x.nota ? ' · ' + x.nota : ''}`, { code: 'EXT', color: [138, 90, 0] })
       }
       if (vf.nota) linea(vf.nota, { color: [80, 80, 80] })
       if (fr === 'manana' && planificado && v.faltanCodigos.length) linea(`Sin cubrir: ${v.faltanCodigos.join(', ')}`, { color: [163, 34, 27], bold: true })

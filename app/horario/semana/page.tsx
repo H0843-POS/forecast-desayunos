@@ -30,6 +30,8 @@ import { useDatos, type AsigInput } from '../_lib/useDatos'
 import EditorCelda from '../_components/EditorCelda'
 import EditorDia, { TIPOS_EVENTO } from '../_components/EditorDia'
 import { OcupacionInfo } from '../_components/OcupacionInfo'
+import { useTiempo } from '../_lib/useTiempo'
+import { describirTiempo, malaTerraza } from '@/lib/horario/tiempo'
 
 type Abierto = null | { fecha: string; franja?: Franja; tipo: 'extra' | 'asignar' | 'evento' }
 
@@ -46,6 +48,7 @@ function Semana() {
   const [diaAbierto, setDiaAbierto] = useState<string | null>(null)
   const [editItem, setEditItem] = useState<string | null>(null)
   const [editOcup, setEditOcup] = useState<string | null>(null)
+  const { tiempo, actualizado: tiempoAct, cargando: cargandoTiempo, actualizar: actualizarTiempo } = useTiempo()
 
   const irSemana = (n: number) => router.push(`/horario/semana?d=${addDays(lunes, 7 * n)}`)
   const fmt = (f: string) => `${Number(f.slice(8))} ${MESES[Number(f.slice(5, 7)) - 1].toLowerCase()}`
@@ -63,7 +66,7 @@ function Semana() {
   async function pdf() {
     if (!datos || !d) return
     const { pdfSemanal } = await import('@/lib/horario/pdf')
-    await pdfSemanal(lunes, d.fechas, datos, d)
+    await pdfSemanal(lunes, d.fechas, datos, d, tiempo)
   }
 
   async function copiarSemanaAnterior() {
@@ -100,6 +103,10 @@ function Semana() {
         <button className="hr-btn" onClick={() => irSemana(1)} aria-label="Semana siguiente">→</button>
         {guardando && <span className="hr-pill">Guardando…</span>}
         <OcupacionInfo fechas={d.fechas} ocupacion={datos.ocupacion} />
+        <button className="hr-btn sm" onClick={actualizarTiempo} disabled={cargandoTiempo}
+          title={tiempoAct ? `Previsión de Open-Meteo para Las Ventas · ${new Date(tiempoAct).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}` : 'Previsión para Las Ventas'}>
+          {cargandoTiempo ? 'Actualizando…' : '🌦 Actualizar tiempo'}
+        </button>
         <span className="hr-pill warn">Extras: {resumenExtras.personas} pers. · {fmtH(resumenExtras.horas)} h</span>
         <div style={{ flex: 1 }} />
         <button className="hr-btn" onClick={copiarSemanaAnterior}>Rellenar huecos con la semana anterior</button>
@@ -154,6 +161,19 @@ function Semana() {
                   )}
                 </div>
                 {oc?.desayunos != null && <div className="hr-muted" style={{ fontFamily: 'var(--mono)' }}>Desay. contr. {oc.desayunos}</div>}
+                {(() => {
+                  const t = tiempo.get(f)
+                  if (!t) return null
+                  const w = describirTiempo(t.codigo)
+                  return (
+                    <div style={{ fontSize: 12, lineHeight: 1.3 }} title={`${w.texto}${t.mm ? ` · ${t.mm} mm` : ''}`}>
+                      <span style={{ fontSize: 16 }}>{w.icono}</span>{' '}
+                      {t.min != null && t.max != null && <span style={{ fontFamily: 'var(--mono)' }}>{Math.round(t.min)}/{Math.round(t.max)}º</span>}
+                      {t.lluvia != null && t.lluvia >= 20 && <span style={{ color: '#2d4fd4', fontFamily: 'var(--mono)' }}> 💧{t.lluvia}%</span>}
+                      {malaTerraza(t) && <div className="hr-pill mal" style={{ marginTop: 2, display: 'inline-block' }}>Terraza: lluvia</div>}
+                    </div>
+                  )
+                })()}
                 {ciudad.map(c => (
                   <button key={c.id} className="hr-extra hr-clic" style={{ background: '#eef3ff', color: '#2d4fd4', border: 0, textAlign: 'left', font: 'inherit', fontSize: 12 }}
                     onClick={() => setDiaAbierto(f)} title="Editar">
