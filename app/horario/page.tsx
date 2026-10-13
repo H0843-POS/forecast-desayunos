@@ -31,6 +31,8 @@ import { useDatos, type AsigInput } from './_lib/useDatos'
 import EditorCelda from './_components/EditorCelda'
 import EditorDia from './_components/EditorDia'
 import { OcupacionInfo } from './_components/OcupacionInfo'
+import { useTiempo } from './_lib/useTiempo'
+import { describirTiempo, malaTerraza } from '@/lib/horario/tiempo'
 
 type Pincel = null | { tipo: TipoAsig; turno?: string } | 'borrar'
 
@@ -51,6 +53,7 @@ function Mensual() {
   const [pincel, setPincel] = useState<Pincel>(null)
   const [editando, setEditando] = useState<{ emp: Empleado; fecha: string } | null>(null)
   const [diaAbierto, setDiaAbierto] = useState<string | null>(null)
+  const { tiempo, cargando: cargandoTiempo, actualizar: actualizarTiempo } = useTiempo()
   const [arrastre, setArrastre] = useState<Set<string>>(new Set())
   const pulsado = useRef(false)
   // edición escribiendo en la celda
@@ -262,6 +265,22 @@ function Mensual() {
                       <th key={f} className="hr-clic" onClick={() => setDiaAbierto(f)} title={tip || 'Añadir evento'}
                         style={{ fontSize: 10, fontWeight: 500, fontFamily: 'var(--mono)', color: '#2d4fd4', background: ev.length ? '#eef3ff' : undefined }}>
                         {ev.length ? (pax || '●') : ''}
+                      </th>
+                    )
+                  })}
+                  <th className="hr-tot" />
+                </tr>
+                <tr>
+                  <th className="hr-name" style={{ fontWeight: 400, fontSize: 11 }}>
+                    Tiempo <button className="hr-link" style={{ fontSize: 10 }} onClick={actualizarTiempo} title="Actualizar previsión (Las Ventas)">{cargandoTiempo ? '…' : '↻'}</button>
+                  </th>
+                  {d.fechas.map(f => {
+                    const t = tiempo.get(f)
+                    const w = t ? describirTiempo(t.codigo) : null
+                    return (
+                      <th key={f} style={{ fontSize: 12, fontWeight: 400, background: t && malaTerraza(t) ? '#e8efff' : undefined }}
+                        title={t ? `${w!.texto} · ${t.min != null ? Math.round(t.min) : '?'}/${t.max != null ? Math.round(t.max) : '?'}º${t.lluvia != null ? ` · lluvia ${t.lluvia}%` : ''}` : 'Sin previsión (solo 16 días)'}>
+                        {w?.icono ?? ''}
                       </th>
                     )
                   })}
