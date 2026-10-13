@@ -24,6 +24,7 @@ import {
   type Evento,
   type Extra,
   type Franja,
+  ICONO_CIUDAD,
 } from '@/lib/horario/core'
 import { horasExtra, vistaDia } from '@/lib/horario/vista'
 import { useDatos, type AsigInput } from '../_lib/useDatos'
@@ -177,7 +178,7 @@ function Semana() {
                 {ciudad.map(c => (
                   <button key={c.id} className="hr-extra hr-clic" style={{ background: '#eef3ff', color: '#2d4fd4', border: 0, textAlign: 'left', font: 'inherit', fontSize: 12 }}
                     onClick={() => setDiaAbierto(f)} title="Editar">
-                    <span>{c.categoria === 'futbol' ? '⚽ ' : ''}{c.hora ? corto(c.hora) + ' ' : ''}{c.descripcion}{c.en_madrid && c.categoria === 'futbol' ? ' · en Madrid' : ''}</span>
+                    <span>{ICONO_CIUDAD[c.categoria]} {c.hora ? corto(c.hora) + ' ' : ''}{c.descripcion}{c.en_madrid && c.categoria === 'futbol' ? ' · en Madrid' : ''}</span>
                   </button>
                 ))}
                 <button className="hr-btn sm" onClick={() => setDiaAbierto(f)}>Eventos del día</button>
