@@ -3,13 +3,16 @@ import { db } from '@/lib/horario/db'
 import { dbCheck, handler, leerJson, ok } from '@/lib/horario/http'
 import * as v from '@/lib/horario/validate'
 import { describir, lunes, turnosMap, type Asignacion, type TipoAsig, type Turno } from '@/lib/horario/core'
+import { etiquetaLibro } from '@/lib/horario/libro'
+import { registrarEnLibro, type CambioTurno } from '@/lib/horario/libroServidor'
 
 export const dynamic = 'force-dynamic'
 
 const TIPOS: readonly TipoAsig[] = ['T', 'L', 'V', 'BJ', 'FO', 'B']
 
 // Cada item fija lo que tiene un empleado un día. tipo = null borra la celda.
-// Si el mes ya está publicado, el cambio queda en el historial de ajustes.
+// Si el mes ya está publicado, el cambio queda en el historial de ajustes
+// y en el libro de cambios de planning (para imprimir y firmar).
 function parseItem(raw: unknown): { empleado_id: string; fecha: string; fila: Asignacion | null } {
   const o = v.objeto(raw, 'item')
   const empleado_id = v.uuid(o.empleado_id, 'empleado_id')
@@ -83,7 +86,8 @@ export const POST = handler(async (req: NextRequest) => {
 
   const upserts: Asignacion[] = []
   const borrar: { empleado_id: string; fecha: string }[] = []
-  const ajustes: { fecha: string; empleado_id: string; empleado_nombre: string; antes: string; despues: string }[] = []
+  const ajustes: { fecha: string; empleado_id: string; empleado_nombre: string; antes: string; despues: string; libro_id?: string }[] = []
+  const libro: CambioTurno[] = []
 
   ultimo.forEach((i, k) => {
     const antes = describir(anterior.get(k), tm)
@@ -91,7 +95,13 @@ export const POST = handler(async (req: NextRequest) => {
     if (i.fila) upserts.push({ ...i.fila, updated_at: new Date().toISOString() } as Asignacion)
     else if (anterior.has(k)) borrar.push({ empleado_id: i.empleado_id, fecha: i.fecha })
     if (publicados.has(i.fecha.slice(0, 7)) && antes !== despues) {
-      ajustes.push({ fecha: i.fecha, empleado_id: i.empleado_id, empleado_nombre: nombres.get(i.empleado_id)!, antes, despues })
+      const nombre = nombres.get(i.empleado_id)!
+      ajustes.push({ fecha: i.fecha, empleado_id: i.empleado_id, empleado_nombre: nombre, antes, despues })
+      let ca = etiquetaLibro(anterior.get(k), tm)
+      let cd = etiquetaLibro(i.fila, tm)
+      // horario retocado con el mismo código (M8* → M8*): mejor el detalle completo
+      if (ca === cd) { ca = antes; cd = despues }
+      libro.push({ empleado_id: i.empleado_id, empleado_nombre: nombre, fecha: i.fecha, antes: ca, despues: cd })
     }
   })
 
@@ -103,9 +113,23 @@ export const POST = handler(async (req: NextRequest) => {
     const r = await s.from('hr_asignaciones').delete().eq('empleado_id', b.empleado_id).eq('fecha', b.fecha)
     dbCheck(r.error)
   }
+  let libroOk = true
+  if (libro.length) {
+    // Si el libro falla (p. ej. falta ejecutar supabase_horario_3.sql) el turno se guarda igual
+    try {
+      const ids = await registrarEnLibro(s, libro)
+      for (const a of ajustes) {
+        const id = ids.get(a.empleado_id)
+        if (id) a.libro_id = id
+      }
+    } catch (e) {
+      libroOk = false
+      console.error('[horario] libro de cambios', e)
+    }
+  }
   if (ajustes.length) {
     const r = await s.from('hr_ajustes').insert(ajustes)
     dbCheck(r.error)
   }
-  return ok({ ok: true, guardadas: upserts.length, borradas: borrar.length, ajustes: ajustes.length })
+  return ok({ ok: true, guardadas: upserts.length, borradas: borrar.length, ajustes: ajustes.length, libro: libroOk })
 })

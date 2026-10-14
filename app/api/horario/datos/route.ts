@@ -52,7 +52,7 @@ export const GET = handler(async (req: NextRequest) => {
   if (hasta < desde || addDays(desde, 75) < hasta) throw new v.ErrorValidacion('Rango de fechas no válido (máx. 75 días)')
 
   const s = db()
-  const [emp, tur, asig, ext, eve, ciu, fes, dias, cfg, meses, aj, fc] = await Promise.all([
+  const [emp, tur, asig, ext, eve, ciu, fes, dias, cfg, meses, aj, fc, lib] = await Promise.all([
     s.from('hr_empleados').select('*').order('orden').order('nombre'),
     s.from('hr_turnos').select('*').order('orden'),
     s.from('hr_asignaciones').select('*').gte('fecha', desde).lte('fecha', hasta),
@@ -65,6 +65,7 @@ export const GET = handler(async (req: NextRequest) => {
     s.from('hr_meses').select('mes'),
     s.from('hr_ajustes').select('*').gte('fecha', desde).lte('fecha', hasta).order('created_at', { ascending: false }).limit(500),
     s.from('forecasts').select('created_at, novotel_data, ibis_data').order('created_at', { ascending: false }).limit(30),
+    s.from('hr_libro').select('id', { count: 'exact', head: true }).is('hoja', null),
   ])
   for (const r of [emp, tur, asig, ext, eve, ciu, fes, dias, cfg, meses, aj]) dbCheck(r.error)
   if (fc.error) console.error('[horario] forecasts', fc.error.message)
@@ -97,6 +98,8 @@ export const GET = handler(async (req: NextRequest) => {
     config,
     meses_publicados: (meses.data ?? []).map(m => m.mes),
     ajustes: aj.data ?? [],
+    // null si aún no existe la tabla (falta supabase_horario_3.sql)
+    libro_pendientes: lib.error ? null : (lib.count ?? 0),
   }
   return ok(out)
 })

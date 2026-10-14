@@ -311,7 +311,7 @@ function Semana() {
             <div className="hr-muted">
               {datos.meses_publicados.some(m => m.slice(0, 7) === lunes.slice(0, 7) || m.slice(0, 7) === domingo.slice(0, 7))
                 ? 'Sin cambios esta semana.'
-                : 'El mes está en borrador: los cambios se registran como ajustes cuando lo publiques.'}
+                : 'El mes está en borrador: los cambios se registran (aquí y en el libro de cambios) cuando lo publiques.'}
             </div>
           ) : (
             <table className="hr-tabla">

@@ -143,6 +143,8 @@ export interface DatosHorario {
   config: ConfigCobertura
   meses_publicados: string[]
   ajustes: Ajuste[]
+  /** filas del libro de cambios sin imprimir (null = libro sin instalar) */
+  libro_pendientes?: number | null
 }
 
 // ---------------------------------------------------------------- fechas
