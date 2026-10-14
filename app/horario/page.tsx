@@ -28,6 +28,8 @@ import {
 } from '@/lib/horario/core'
 import { horasEmpleadoRango } from '@/lib/horario/vista'
 import { api } from '@/lib/horario/client'
+import { FILAS_HOJA } from '@/lib/horario/libro'
+import Link from 'next/link'
 import { useDatos, type AsigInput } from './_lib/useDatos'
 import EditorCelda from './_components/EditorCelda'
 import EditorDia from './_components/EditorDia'
@@ -167,10 +169,10 @@ function Mensual() {
 
   async function togglePublicar() {
     if (publicado) {
-      if (!confirm('¿Volver a borrador? Los cambios dejarán de registrarse como ajustes.')) return
+      if (!confirm('¿Volver a borrador? Los cambios de turno dejarán de apuntarse en el libro de cambios.')) return
       await borrarRecurso('meses', 'mes', mes).catch(() => {})
     } else {
-      if (!confirm('Publicar el mes: a partir de ahora cada cambio queda en el historial de ajustes (hoja semanal). ¿Seguir?')) return
+      if (!confirm('Publicar el mes: a partir de ahora cada cambio de turno se apunta en el libro de cambios (para imprimir y firmar) y en los ajustes de la hoja semanal. ¿Seguir?')) return
       await guardarRecurso('meses', { mes }).catch(() => {})
     }
   }
@@ -188,7 +190,12 @@ function Mensual() {
         <button className="hr-btn" onClick={() => irMes(-1)} aria-label="Mes anterior">←</button>
         <h1>{MESES[m - 1]} {y}</h1>
         <button className="hr-btn" onClick={() => irMes(1)} aria-label="Mes siguiente">→</button>
-        <span className={`hr-pill ${publicado ? 'ok' : ''}`}>{publicado ? 'Publicado · cambios = ajustes' : 'Borrador'}</span>
+        <span className={`hr-pill ${publicado ? 'ok' : ''}`}>{publicado ? 'Publicado · cambios al libro' : 'Borrador'}</span>
+        {datos?.libro_pendientes ? (
+          <Link href="/horario/libro" className={`hr-pill ${datos.libro_pendientes >= FILAS_HOJA ? 'mal' : 'warn'}`} style={{ textDecoration: 'none' }}>
+            Libro: {datos.libro_pendientes} sin imprimir{datos.libro_pendientes >= FILAS_HOJA ? ' · hoja llena' : ''}
+          </Link>
+        ) : null}
         {guardando && <span className="hr-pill">Guardando…</span>}
         {datos && d && <OcupacionInfo fechas={d.fechas} ocupacion={datos.ocupacion} />}
         <div style={{ flex: 1 }} />

@@ -46,6 +46,14 @@ export function texto(v: unknown, campo: string, max: number, min = 1): string {
   if (t.length < min || t.length > max) fail(campo)
   return t
 }
+/** Como texto() pero conserva los saltos de línea (máx. `lineas`) */
+export function textoLineas(v: unknown, campo: string, max: number, lineas: number): string {
+  if (typeof v !== 'string') fail(campo)
+  const t = v.replace(/\r\n?/g, '\n').replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, ' ')
+    .split('\n').map(l => l.trim()).filter(Boolean).join('\n')
+  if (t.length < 1 || t.length > max || t.split('\n').length > lineas) fail(campo)
+  return t
+}
 export function textoOpt(v: unknown, campo: string, max: number): string | null {
   if (v === null || v === undefined) return null
   if (typeof v === 'string' && v.trim() === '') return null

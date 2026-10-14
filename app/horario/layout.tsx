@@ -6,6 +6,7 @@ import './horario.css'
 const NAV = [
   { href: '/horario', label: 'Mensual' },
   { href: '/horario/semana', label: 'Semana · extras y ajustes' },
+  { href: '/horario/libro', label: 'Libro de cambios' },
   { href: '/horario/eventos', label: 'Eventos y partidos' },
   { href: '/horario/plantilla', label: 'Plantilla' },
   { href: '/horario/calendario', label: 'Festivos y reglas' },

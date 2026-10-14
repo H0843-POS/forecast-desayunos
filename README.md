@@ -62,3 +62,9 @@ Cambiar `HORARIO_PASSWORD` cierra todas las sesiones abiertas.
    - `FOOTBALL_DATA_TOKEN`: clave gratuita de football-data.org (partidos de Champions y LaLiga).
    - `CRON_SECRET`: texto aleatorio de 16+ caracteres; Vercel lo usa para lanzar la actualización diaria (`vercel.json`).
    - `TICKETMASTER_KEY`: Consumer Key gratuita de developer.ticketmaster.com (grandes conciertos).
+
+### Actualización 3 (libro de cambios de planning)
+
+1. Ejecutar `supabase_horario_3.sql` en Supabase (idempotente). Sin él, los turnos se guardan igual pero no se apuntan en el libro.
+2. Pestaña **Libro de cambios**: con el mes publicado, cada cambio de turno crea una fila (fecha de petición, colaborador, detalle).
+   Hojas de 15 filas con firma del colaborador y del responsable; al imprimir se numeran y quedan bloqueadas.
